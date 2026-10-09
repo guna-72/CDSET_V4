@@ -1,0 +1,18 @@
+export const calls = [];
+export const mock = { gitOk: true, projects: [], importImpl: null, refreshQueue: [], failAnalyze: false, profile: null, generated: [], files: [{ path: 'app.py' }] };
+const rec = (n, ...a) => calls.push([n, ...a]);
+export const getGitStatus = async () => ({ git_available: mock.gitOk });
+export const importGitProject = async (...a) => { rec('import', ...a); if (mock.importImpl) return mock.importImpl(...a);
+  return { id: 'p1', name: 'Hello-World', source_type: 'git', git_branch: 'master', git_commit: '7fd1a60b01f91b314f' }; };
+export const analyzeProject = async (id) => { rec('analyze', id); if (mock.failAnalyze) throw new Error('boom'); return mock.profile ? { profile: mock.profile } : {}; };
+export const discoverFailures = async (id) => { rec('discover', id); return {}; };
+export const generateExperiments = async (id) => { rec('generate', id); return { experiments: mock.generated }; };
+export const refreshGitProject = async (id, discard) => { rec('refresh', id, discard); const r = mock.refreshQueue.shift(); if (r instanceof Error) throw r; return r; };
+export const listProjects = async () => ({ projects: mock.projects });
+export const deleteProject = async (id) => { rec('delete', id); };
+export const getProjectFiles = async () => ({ files: mock.files });
+export const getProjectFile = async () => ({ content: 'print(1)\n' });
+export const saveProjectFile = async (...a) => { rec('save', ...a); return {}; };
+export const ideTest = async () => ({ ok: true, exit_code: 0, stdout: '', stderr: '' });
+export const ideRun = async () => ({ ok: true, exit_code: 0, stdout: '', stderr: '' });
+export const getProject = async () => ({ name: 'My Project' });

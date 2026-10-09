@@ -1,0 +1,18 @@
+# Core project intentionally uses only the Python standard library.
+# Firebase integration is optional for local/offline development and required
+# when FIREBASE_AUTH_REQUIRED=true.
+firebase-admin>=6.5,<8
+# Used by the Cloud IDE "Test" button for Python projects (falls back to unittest if absent).
+pytest>=7
+# app/tutor.py's second-choice path for AI tutor answers directly imports
+# ai_tutor_backend/ai_tutor.py in-process (its first choice is an HTTP call
+# to that service running separately via ai_tutor_backend/start_ai_tutor.bat
+# on port 5000). That module imports python-dotenv and google-genai at
+# module load time, so without them here too, the in-process fallback fails
+# with "No module named 'dotenv'" any time the standalone service isn't up
+# yet (or isn't reachable) - even though the failure is caught and silently
+# degrades to the rule-based tutor. Declaring them here as well makes that
+# fallback actually work on its own, regardless of whether/when the
+# separate ai_tutor_backend process has started.
+python-dotenv>=1.0,<2
+google-genai>=1.0,<2

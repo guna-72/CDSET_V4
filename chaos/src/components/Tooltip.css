@@ -1,0 +1,115 @@
+.tooltip-wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.custom-tooltip {
+  position: absolute;
+  z-index: 9999;
+  pointer-events: none;
+  background: rgba(14, 18, 28, 0.96);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  box-shadow: 0 10px 30px -4px rgba(0, 0, 0, 0.75), 0 0 18px rgba(99, 102, 241, 0.25);
+  border-radius: 8px;
+  padding: 8px 12px;
+  max-width: 220px;
+  min-width: 140px;
+  width: max-content;
+  text-align: left;
+  line-height: 1.4;
+  white-space: normal;
+  user-select: none;
+}
+
+/* Positions */
+.custom-tooltip--right {
+  left: calc(100% + 12px);
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.custom-tooltip--left {
+  right: calc(100% + 12px);
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.custom-tooltip--top {
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.custom-tooltip--bottom {
+  top: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* Arrows */
+.tooltip-arrow {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  background: rgba(14, 18, 28, 0.96);
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  transform: rotate(45deg);
+}
+
+.tooltip-arrow--right {
+  left: -4px;
+  top: 50%;
+  margin-top: -3px;
+  border-right: none;
+  border-top: none;
+}
+
+.tooltip-arrow--left {
+  right: -4px;
+  top: 50%;
+  margin-top: -3px;
+  border-left: none;
+  border-bottom: none;
+}
+
+.tooltip-arrow--top {
+  bottom: -4px;
+  left: 50%;
+  margin-left: -3px;
+  border-top: none;
+  border-left: none;
+}
+
+.tooltip-arrow--bottom {
+  top: -4px;
+  left: 50%;
+  margin-left: -3px;
+  border-bottom: none;
+  border-right: none;
+}
+
+/* Text formatting */
+.tooltip-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0.3px;
+  margin-bottom: 3px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tooltip-text {
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+.tooltip-wrapper { z-index: 1; }
+.sidebar .tooltip-wrapper, .sidebar-footer-item .tooltip-wrapper { z-index: 20; }
+
+.custom-tooltip--fixed { position: fixed !important; z-index: 100000; width: max-content; min-width: 180px; max-width: min(360px, calc(100vw - 20px)); box-sizing: border-box; pointer-events: none; }
