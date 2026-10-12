@@ -8,6 +8,8 @@ import {
     getRunDiagnosis, getTutor, askTutor, getTutorContext,
     getProjectLatestRun, listRuns
 } from '../api';
+import { getEffectiveApiKey } from '../utils/apiKeys';
+import SpotlightCard from '../components/SpotlightCard';
 
 const getChatStorageKey = (runId, pId) => {
     if (runId) return `chaosTutorChat_run_${runId}`;
@@ -42,14 +44,27 @@ const buildContextStr = (ctx, diag) => {
 const requestAiTutorResponse = async ({ question, fault, contextStr, history = [], runId = '', sessionId = '' }) => {
     let answer = null;
 
+    // Check setting for API key first; if present, use that; else ai_tutor_backend falls back to .env
+    const settingGeminiKey = getEffectiveApiKey('gemini') || getEffectiveApiKey('auto');
+
     // 1. Direct call to ai_tutor_backend Flask service (port 5000)
     try {
         const abortCtrl = new AbortController();
         const timeoutId = setTimeout(() => abortCtrl.abort(), 12000);
+        const headers = { 'Content-Type': 'application/json' };
+        if (settingGeminiKey) {
+            headers['X-API-Key'] = settingGeminiKey;
+        }
         const resp = await fetch('http://127.0.0.1:5000/api/chat', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ question, fault, context: contextStr, history }),
+            headers,
+            body: JSON.stringify({
+                question,
+                fault,
+                context: contextStr,
+                history,
+                ...(settingGeminiKey ? { api_key: settingGeminiKey } : {})
+            }),
             signal: abortCtrl.signal,
         });
         clearTimeout(timeoutId);
@@ -451,13 +466,15 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
             <style>{`
 
                 .chaos-tutor-view {
-                    padding: 24px;
+                    padding: 32px;
                     color: var(--text-main, #f3f4f6);
                     font-family: var(--font-sans, 'Inter', system-ui, -apple-system, sans-serif);
                     box-sizing: border-box;
                     width: 100%;
                     max-width: 1600px;
                     margin: 0 auto;
+                    position: relative;
+                    z-index: 1;
                 }
 
                 .chaos-tutor-view * {
@@ -481,17 +498,17 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
 
                 /* ================= SHARED GLASS PANEL ================= */
                 .chaos-panel {
-                    background: linear-gradient(180deg, rgba(16, 21, 33, 0.88), rgba(9, 12, 20, 0.94));
+                    background: rgba(11, 14, 22, 0.65);
                     border: 1px solid rgba(255, 255, 255, 0.08);
-                    border-radius: 14px;
+                    border-radius: 12px;
                     backdrop-filter: blur(16px);
                     -webkit-backdrop-filter: blur(16px);
-                    box-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.5), 0 0 24px -2px rgba(99, 102, 241, 0.08);
+                    box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.6), 0 0 20px rgba(99, 102, 241, 0.1);
                     display: flex;
                     flex-direction: column;
                     position: relative;
                     overflow: hidden;
-                    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+                    transition: border-color 0.25s ease, box-shadow 0.25s ease;
                 }
 
                 .chaos-chatPanel {
@@ -506,7 +523,8 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
                 }
 
                 .chaos-panel:hover {
-                    border-color: rgba(99, 102, 241, 0.25);
+                    border-color: rgba(99, 102, 241, 0.35);
+                    box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.6), 0 0 20px rgba(99, 102, 241, 0.18);
                 }
 
                 /* ================= LEFT: CHAT PANEL ================= */
@@ -842,10 +860,18 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
                 }
 
                 .chaos-reasonCard {
-                    background: rgba(239, 68, 68, 0.07);
-                    border: 1px solid rgba(239, 68, 68, 0.22);
-                    border-radius: 10px;
-                    padding: 15px 17px;
+                    background: rgba(239, 68, 68, 0.06);
+                    border: 1px solid rgba(239, 68, 68, 0.25);
+                    border-radius: 12px;
+                    backdrop-filter: blur(16px);
+                    -webkit-backdrop-filter: blur(16px);
+                    padding: 16px 18px;
+                    transition: border-color 0.25s ease, box-shadow 0.25s ease;
+                }
+
+                .chaos-reasonCard:hover {
+                    border-color: rgba(239, 68, 68, 0.45);
+                    box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.5), 0 0 16px rgba(239, 68, 68, 0.2);
                 }
 
                 .chaos-reasonCard h3 {
@@ -872,10 +898,18 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
                 }
 
                 .chaos-fixCard {
-                    background: rgba(245, 158, 11, 0.07);
-                    border: 1px solid rgba(245, 158, 11, 0.24);
-                    border-radius: 10px;
-                    padding: 15px 17px;
+                    background: rgba(245, 158, 11, 0.06);
+                    border: 1px solid rgba(245, 158, 11, 0.25);
+                    border-radius: 12px;
+                    backdrop-filter: blur(16px);
+                    -webkit-backdrop-filter: blur(16px);
+                    padding: 16px 18px;
+                    transition: border-color 0.25s ease, box-shadow 0.25s ease;
+                }
+
+                .chaos-fixCard:hover {
+                    border-color: rgba(245, 158, 11, 0.45);
+                    box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.5), 0 0 16px rgba(245, 158, 11, 0.2);
                 }
 
                 .chaos-fixCard h3 {
@@ -897,12 +931,20 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
 
                 /* ================= BLOCK 3: ERROR CODE CARD ================= */
                 .chaos-errorCodeCard {
-                    background: rgba(239, 68, 68, 0.05);
-                    border: 1px solid rgba(239, 68, 68, 0.25);
-                    border-radius: 10px;
+                    background: rgba(11, 14, 22, 0.65);
+                    border: 1px solid rgba(239, 68, 68, 0.28);
+                    border-radius: 12px;
+                    backdrop-filter: blur(16px);
+                    -webkit-backdrop-filter: blur(16px);
                     overflow: hidden;
                     min-width: 0;
                     max-width: 100%;
+                    transition: border-color 0.25s ease, box-shadow 0.25s ease;
+                }
+
+                .chaos-errorCodeCard:hover {
+                    border-color: rgba(239, 68, 68, 0.5);
+                    box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.5), 0 0 16px rgba(239, 68, 68, 0.2);
                 }
 
                 .chaos-errorCodeHeader {
@@ -959,12 +1001,20 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
 
                 /* ================= BLOCK 4: FIX CODE CARD ================= */
                 .chaos-fixCodeCard {
-                    background: rgba(16, 185, 129, 0.05);
-                    border: 1px solid rgba(16, 185, 129, 0.25);
-                    border-radius: 10px;
+                    background: rgba(11, 14, 22, 0.65);
+                    border: 1px solid rgba(16, 185, 129, 0.28);
+                    border-radius: 12px;
+                    backdrop-filter: blur(16px);
+                    -webkit-backdrop-filter: blur(16px);
                     overflow: hidden;
                     min-width: 0;
                     max-width: 100%;
+                    transition: border-color 0.25s ease, box-shadow 0.25s ease;
+                }
+
+                .chaos-fixCodeCard:hover {
+                    border-color: rgba(16, 185, 129, 0.5);
+                    box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.5), 0 0 16px rgba(16, 185, 129, 0.2);
                 }
 
                 .chaos-fixCodeHeader {
@@ -1057,9 +1107,20 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
                     display: flex;
                     align-items: center;
                     gap: 10px;
-                    margin-bottom: 16px;
+                    margin-bottom: 20px;
                     flex-wrap: wrap;
                     width: 100%;
+                    background: rgba(11, 14, 22, 0.65);
+                    border: 1px solid rgba(255, 255, 255, 0.08);
+                    border-radius: 12px;
+                    backdrop-filter: blur(16px);
+                    -webkit-backdrop-filter: blur(16px);
+                    transition: border-color 0.25s ease, box-shadow 0.25s ease;
+                }
+
+                .chaos-topBar:hover {
+                    border-color: rgba(99, 102, 241, 0.35);
+                    box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.6), 0 0 20px rgba(99, 102, 241, 0.15);
                 }
 
                 .chaos-badge {
@@ -1307,7 +1368,11 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
 
             {/* LIVE SPINNER NOTIFICATION BANNER: Tells which project is running & the injected error */}
             {runningNow && (
-                <div className="chaos-runningBanner">
+                <SpotlightCard
+                    spotlightColor="rgba(99, 102, 241, 0.28)"
+                    className="chaos-runningBanner"
+                    style={{ padding: '14px 20px', marginBottom: '18px' }}
+                >
                     <div className="chaos-runningSpinnerWrapper">
                         <Loader2 size={20} className="spin" color="#818cf8" />
                     </div>
@@ -1320,11 +1385,15 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
                             Injected Error: <span className="chaos-faultHighlight">{runningInjectedError || 'Fault Injection'}</span> — Monitoring failure points in real-time. This page updates automatically.
                         </div>
                     </div>
-                </div>
+                </SpotlightCard>
             )}
 
             {/* Top Project & Run Status Bar */}
-            <div className="chaos-topBar">
+            <SpotlightCard
+                spotlightColor="rgba(99, 102, 241, 0.2)"
+                className="chaos-topBar"
+                style={{ padding: '12px 18px', marginBottom: '20px' }}
+            >
                 {runningProjectName && (
                     <span className="chaos-badge" style={{ background: 'rgba(99,102,241,0.14)', border: '1px solid rgba(99,102,241,0.35)', color: '#c7d2fe' }}>
                         <Folder size={13} /> {runningProjectName}
@@ -1366,7 +1435,7 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
                         ))}
                     </select>
                 )}
-            </div>
+            </SpotlightCard>
 
             {/* Loading Indicator */}
             {view.loading && !view.ctx && (
@@ -1378,7 +1447,10 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
 
             {/* Empty State when first test is running on a project */}
             {projectId && !activeRunId && runningNow && (
-                <div className="glass-card" style={{ padding: 36, textAlign: 'center', margin: '0 auto 24px', maxWidth: 640 }}>
+                <SpotlightCard
+                    spotlightColor="rgba(99, 102, 241, 0.22)"
+                    style={{ padding: 36, textAlign: 'center', margin: '0 auto 24px', maxWidth: 640 }}
+                >
                     <div style={{ display: 'inline-flex', padding: 14, borderRadius: '50%', background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(129,140,248,0.25)', marginBottom: 14 }}>
                         <Loader2 size={32} className="spin" color="#818cf8" />
                     </div>
@@ -1389,16 +1461,18 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
                     <p style={{ color: '#94a3b8', fontSize: 13, lineHeight: 1.6, maxWidth: 500, margin: '0 auto' }}>
                         The test is currently injecting this fault into your application. As soon as the service responds or fails, the AI Tutor will immediately present the root cause, exact code lines, and resilience patch here.
                     </p>
-                </div>
+                </SpotlightCard>
             )}
 
             {/* Main 2-Column Equal Workspace: Chat Left, AI Tutor Right */}
             <div className="chaos-workspace">
 
                 {/* LEFT: AI TUTOR CHAT PANEL */}
-                <div
+                <SpotlightCard
+                    spotlightColor="rgba(99, 102, 241, 0.22)"
                     className="chaos-panel chaos-chatPanel"
                     style={{
+                        padding: 0,
                         maxHeight: maxChatHeight ? `${maxChatHeight}px` : undefined
                     }}
                 >
@@ -1509,10 +1583,15 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
                             {asking ? <Loader2 size={15} className="spin" /> : <Send size={15} />}
                         </button>
                     </div>
-                </div>
+                </SpotlightCard>
 
                 {/* RIGHT: AI TUTOR EXPLANATION PANEL */}
-                <div className="chaos-panel chaos-explanationPanel" ref={explanationRef}>
+                <SpotlightCard
+                    ref={explanationRef}
+                    spotlightColor="rgba(99, 102, 241, 0.22)"
+                    className="chaos-panel chaos-explanationPanel"
+                    style={{ padding: 0 }}
+                >
                     <div className="chaos-explanationHeader">
                         <div>
                             <h2>
@@ -1542,7 +1621,11 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
                     <div className="chaos-explanationContent">
                         {/* 1. DYNAMIC REASON BLOCK: Appears ONLY if real reason data exists for this specific error */}
                         {hasReasonData && (
-                            <div className="chaos-reasonCard">
+                            <SpotlightCard
+                                spotlightColor="rgba(239, 68, 68, 0.2)"
+                                className="chaos-reasonCard"
+                                style={{ padding: '16px 18px' }}
+                            >
                                 <h3>{view.ctx?.handled_correctly ? '✅ What was tested' : '⚠️ Reason'}</h3>
                                 {data.rootCause && (
                                     <p style={{ marginBottom: '8px', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
@@ -1571,18 +1654,22 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
                                     <div style={{ marginTop: '8px', background: 'rgba(4,6,12,0.6)', borderRadius: 8, padding: '10px 14px', overflowX: 'auto', maxWidth: '100%' }}>
                                         <div style={{ fontSize: 10, fontWeight: 700, color: '#64748b', letterSpacing: '0.6px', textTransform: 'uppercase', marginBottom: 6 }}>{view.ctx?.handled_correctly ? 'Technical details (for reference)' : 'Technical details: what the program printed'}</div>
                                         {data.traceLines.slice(0, 6).map((line, idx) => (
-                                            <div key={idx} style={{ fontFamily: 'monospace', fontSize: 11, lineHeight: 1.6, color: idx === 0 ? '#f87171' : '#94a3b8', whiteSpace: 'pre-wrap', wordBreak: 'break-all', overflowWrap: 'anywhere' }}>
+                                             <div key={idx} style={{ fontFamily: 'monospace', fontSize: 11, lineHeight: 1.6, color: idx === 0 ? '#f87171' : '#94a3b8', whiteSpace: 'pre-wrap', wordBreak: 'break-all', overflowWrap: 'anywhere' }}>
                                                 {line}
                                             </div>
                                         ))}
                                     </div>
                                 )}
-                            </div>
+                            </SpotlightCard>
                         )}
 
                         {/* 2. DYNAMIC FIX BLOCK: Appears ONLY if real recommended fix data exists for this specific error */}
                         {hasFixData && (
-                            <div className="chaos-fixCard">
+                            <SpotlightCard
+                                spotlightColor="rgba(245, 158, 11, 0.2)"
+                                className="chaos-fixCard"
+                                style={{ padding: '16px 18px' }}
+                            >
                                 <h3>🛠 Fix</h3>
                                 {data.fixAction && (
                                     <p style={{ color: '#e2e8f0', fontWeight: 500, marginBottom: '8px', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
@@ -1625,12 +1712,16 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
                                         <Zap size={13} /> Re-run in Chaos Lab
                                     </button>
                                 </div>
-                            </div>
+                            </SpotlightCard>
                         )}
 
                         {/* 3. DYNAMIC ERROR CODE BLOCK: Dedicated card for observed vulnerable/error code */}
                         {hasErrorCode && (
-                            <div className="chaos-errorCodeCard">
+                            <SpotlightCard
+                                spotlightColor="rgba(239, 68, 68, 0.18)"
+                                className="chaos-errorCodeCard"
+                                style={{ padding: 0 }}
+                            >
                                 <div className="chaos-errorCodeHeader">
                                     <div className="chaos-errorCodeTitle">
                                         <AlertTriangle size={15} color="#f87171" />
@@ -1652,12 +1743,16 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
                                     </div>
                                 </div>
                                 <pre className="chaos-errorCodeBody">{data.fragileCode}</pre>
-                            </div>
+                            </SpotlightCard>
                         )}
 
                         {/* 4. DYNAMIC FIX CODE BLOCK: Dedicated card for proposed resilient code */}
                         {hasFixCode && (
-                            <div className="chaos-fixCodeCard">
+                            <SpotlightCard
+                                spotlightColor="rgba(16, 185, 129, 0.2)"
+                                className="chaos-fixCodeCard"
+                                style={{ padding: 0 }}
+                            >
                                 <div className="chaos-fixCodeHeader">
                                     <div className="chaos-fixCodeTitle">
                                         <ShieldCheck size={16} color="#34d399" />
@@ -1680,20 +1775,26 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
                                         )}
                                     </div>
                                 </div>
-                                {data.patternDesc && (
-                                    <div className="chaos-fixCodeDesc">
-                                        {data.patternDesc}
-                                    </div>
-                                )}
+                                <div className="chaos-fixCodeDesc">
+                                    {data.patternDesc}
+                                </div>
                                 {data.resilientCode && (
                                     <pre className="chaos-fixCodeBody">{data.resilientCode}</pre>
                                 )}
-                            </div>
+                            </SpotlightCard>
                         )}
 
                         {/* CASE: Project handled the fault correctly (tutor not needed) */}
                         {view.ctx?.handled_correctly && (
-                            <div className="chaos-reasonCard" style={{ borderColor: 'rgba(16,185,129,0.35)', background: 'rgba(16,185,129,0.06)' }}>
+                            <SpotlightCard
+                                spotlightColor="rgba(16, 185, 129, 0.2)"
+                                className="chaos-reasonCard"
+                                style={{
+                                    padding: '16px 18px',
+                                    borderColor: 'rgba(16,185,129,0.35)',
+                                    background: 'rgba(16,185,129,0.06)'
+                                }}
+                            >
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
                                     <ShieldCheck size={20} color="#10b981" />
                                     <span style={{ fontSize: 16, fontWeight: 700, color: '#34d399', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>Passed: handled safely, no fix needed</span>
@@ -1712,7 +1813,7 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
                                         <Zap size={13} /> Run another test in Chaos Lab
                                     </button>
                                 </div>
-                            </div>
+                            </SpotlightCard>
                         )}
 
                         {/* EMPTY STATE: Neither reason, fix, error code, fix code, nor handled */}
@@ -1725,7 +1826,7 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
                             </div>
                         )}
                     </div>
-                </div>
+                </SpotlightCard>
 
             </div>
         </div>

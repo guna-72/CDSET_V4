@@ -21,7 +21,6 @@ const API_TOKEN=import.meta.env.VITE_API_TOKEN||'';
 async function request(path, options={}) {
   const headers=new Headers(options.headers||{});
   // Wait for Firebase to restore the saved session, otherwise the first request after a
-  // page load goes out without a token (or with none at all) and the backend answers 401.
   if (auth?.authStateReady) { try { await auth.authStateReady(); } catch {} }
   const user=auth?.currentUser;
   if (API_TOKEN && !user) {
@@ -30,6 +29,18 @@ async function request(path, options={}) {
     const token=await user.getIdToken();
     if (token) headers.set('Authorization',`Bearer ${token}`);
   }
+  // Attach user-configured Settings API keys if present (takes precedence over .env)
+  try {
+    const rawKeys = localStorage.getItem('chaosTutorApiKeys');
+    if (rawKeys) {
+      const k = JSON.parse(rawKeys);
+      if (k.gemini) headers.set('X-Gemini-Key', k.gemini);
+      if (k.groq) headers.set('X-Groq-Key', k.groq);
+      if (k.openai) headers.set('X-Openai-Key', k.openai);
+      if (k.anthropic) headers.set('X-Anthropic-Key', k.anthropic);
+      if (k.openrouter) headers.set('X-Openrouter-Key', k.openrouter);
+    }
+  } catch {}
   // Requests get a timeout so a stalled backend shows a clear error
   // instead of an endless "Loading..." spinner.
   const isGet=!options.method||String(options.method).toUpperCase()==='GET';
@@ -111,6 +122,8 @@ export const ideRun=(id,path,stdin='')=>request(`/projects/${id}/ide/run`,json('
 export const cancelExperimentRun=id=>request(`/runs/${id}/cancel`,json('POST'));
 export const checkApiKey=(provider,key,endpoint='')=>request('/keys/check',json('POST',{provider,key,endpoint: endpoint || undefined}));
 export const getApiKeyStatus=()=>request('/keys/status');
+export const getBackendSettingsKeys=()=>request('/settings/keys');
+export const saveBackendSettingsKeys=(keys)=>request('/settings/keys',json('POST',{keys}));
 
 
 // Compatibility adapters for the original Chaos Lab UI. They preserve its visual

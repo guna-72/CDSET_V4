@@ -69,20 +69,33 @@ def chat():
         context = data.get("context", "")
         history = data.get("history", [])
 
+        # Priority: first check setting / request key; if present, use it; else fallback to .env in ai_tutor.py
+        custom_key = data.get("api_key") or data.get("apiKey") or request.headers.get("X-API-Key")
+        if custom_key and str(custom_key).strip():
+            custom_key = str(custom_key).strip()
+        else:
+            custom_key = None
+
         print("\n================================")
         print("AI TUTOR CHAT RECEIVED")
         print("================================")
-        print("Question: ", question)
-        print("Fault:    ", fault)
+        print("Question:   ", question)
+        print("Fault:      ", fault)
+        print("Key Source: ", "Settings (request body/header)" if custom_key else "Backend .env fallback")
         print("================================\n")
 
         reply = chat_with_ai(
             question=str(question).strip(),
             fault=str(fault),
             context=str(context) if isinstance(context, str) else str(context),
-            history=history if isinstance(history, list) else []
+            history=history if isinstance(history, list) else [],
+            custom_api_key=custom_key,
         )
-        return jsonify({"answer": reply, "status": "success"}), 200
+        return jsonify({
+            "answer": reply,
+            "status": "success",
+            "source": "settings" if custom_key else "env"
+        }), 200
 
     except Exception as error:
         print("[ai_tutor] Unhandled error in /api/chat:", error)
@@ -108,17 +121,25 @@ def ai_tutor():
                 "error": "Fault type is required."
             }), 400
 
+        # Priority: first check setting / request key; if present, use it; else fallback to .env in ai_tutor.py
+        custom_key = fault_data.get("api_key") or fault_data.get("apiKey") or request.headers.get("X-API-Key")
+        if custom_key and str(custom_key).strip():
+            custom_key = str(custom_key).strip()
+        else:
+            custom_key = None
+
         print("\n================================")
         print("AI TUTOR FAULT RECEIVED")
         print("================================")
-        print("Fault:  ", fault)
-        print("Error:  ", fault_data.get("error_message"))
-        print("Service:", fault_data.get("service"))
-        print("File:   ", fault_data.get("file"))
-        print("Line:   ", fault_data.get("line"))
+        print("Fault:      ", fault)
+        print("Error:      ", fault_data.get("error_message"))
+        print("Service:    ", fault_data.get("service"))
+        print("File:       ", fault_data.get("file"))
+        print("Line:       ", fault_data.get("line"))
+        print("Key Source: ", "Settings (request body/header)" if custom_key else "Backend .env fallback")
         print("================================\n")
 
-        result = generate_ai_response(fault_data)
+        result = generate_ai_response(fault_data, custom_api_key=custom_key)
         return jsonify(result), 200
 
     except Exception as error:

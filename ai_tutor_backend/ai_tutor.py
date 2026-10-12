@@ -100,22 +100,30 @@ def extract_json(text):
 # Main response generator
 # ------------------------------------------------
 
-def generate_ai_response(fault_data):
+def generate_ai_response(fault_data, custom_api_key: str | None = None):
     """
     Send fault_data to Gemini and return a structured analysis dict.
-    Tries each configured API key in order until one succeeds.
-    Returns a graceful fallback response if all keys fail or none exist.
+    First checks if a key is provided from settings; if present, uses that key.
+    Otherwise, checks and falls back to API keys in the .env file.
     """
+    # 1. First check in settings: if a key exists, use that key
+    if custom_api_key and str(custom_api_key).strip():
+        keys_to_try = [str(custom_api_key).strip()]
+        print("[ai_tutor] generate_ai_response: Using API key from Settings (priority over .env).")
+    else:
+        # 2. Else check the API keys in the .env file
+        keys_to_try = list(API_KEYS)
+        print(f"[ai_tutor] generate_ai_response: Using {len(keys_to_try)} API key(s) from .env.")
 
-    # No API keys configured
-    if not API_KEYS:
-        print("[ai_tutor] No Gemini API keys configured — returning fallback.")
+    # No API keys configured anywhere
+    if not keys_to_try:
+        print("[ai_tutor] No Gemini API keys configured in settings or .env — returning fallback.")
         return _no_keys_response(fault_data)
 
     prompt = create_prompt(fault_data)
 
-    # Try each API key in rotation
-    for key_number, api_key in enumerate(API_KEYS, start=1):
+    # Try each candidate API key in rotation
+    for key_number, api_key in enumerate(keys_to_try, start=1):
         try:
             client = genai.Client(
                 api_key=api_key,
@@ -161,7 +169,7 @@ def generate_ai_response(fault_data):
             continue
 
     # All keys failed
-    print("[ai_tutor] All Gemini API keys failed — returning fallback.")
+    print("[ai_tutor] All candidate Gemini API keys failed — returning fallback.")
     return _all_keys_failed_response(fault_data)
 
 
@@ -241,13 +249,23 @@ def _all_keys_failed_response(fault_data):
 # Conversational AI Tutor Chat
 # ------------------------------------------------
 
-def chat_with_ai(question: str, fault: str = "", context: str = "", history: list | None = None) -> str:
+def chat_with_ai(question: str, fault: str = "", context: str = "", history: list | None = None, custom_api_key: str | None = None) -> str:
     """
     Direct conversational AI Tutor chat powered by Gemini.
-    Answers any user query, drawing from fault context and conversation history.
+    First checks if a custom_api_key is provided from settings. If present, uses that key.
+    Otherwise, checks and falls back to API_KEYS loaded from the .env file.
     """
-    if not API_KEYS:
-        return "Gemini API keys are not configured in ai_tutor_backend/.env."
+    # 1. First check in settings: if custom_api_key is provided, use that key
+    if custom_api_key and str(custom_api_key).strip():
+        keys_to_try = [str(custom_api_key).strip()]
+        print("[ai_tutor] chat_with_ai: Using API key from Settings (priority over .env).")
+    else:
+        # 2. Else check the API keys in the .env file
+        keys_to_try = list(API_KEYS)
+        print(f"[ai_tutor] chat_with_ai: Using {len(keys_to_try)} API key(s) from .env.")
+
+    if not keys_to_try:
+        return "Gemini API keys are not configured in Settings or ai_tutor_backend/.env."
 
     history = history or []
     history_lines = []
@@ -277,7 +295,7 @@ INSTRUCTIONS:
 4. Reply directly in clear, clean text or markdown (no JSON wrapping).
 """
 
-    for key_number, api_key in enumerate(API_KEYS, start=1):
+    for key_number, api_key in enumerate(keys_to_try, start=1):
         for model_name in CANDIDATE_MODELS:
             try:
                 client = genai.Client(

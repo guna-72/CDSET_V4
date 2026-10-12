@@ -59,9 +59,23 @@ class TestLoadKeys(unittest.TestCase):
             self.assertEqual(lp.load_keys().get("openai"), ["k1", "k2"])
 
     def test_no_keys_configured(self):
-        with _clean_env():
+        with _clean_env(), mock.patch("app.llm_providers.get_settings_keys", return_value={}):
             self.assertEqual(lp.load_keys(), {})
             self.assertFalse(lp.any_keys_configured())
+
+    def test_settings_key_takes_priority_over_env_file(self):
+        with _clean_env(), mock.patch.dict(os.environ, {"GEMINI_API_KEYS": "env-gemini-key"}):
+            with mock.patch("app.llm_providers.get_settings_keys", return_value={"gemini": "settings-gemini-key"}):
+                keys = lp.load_keys()
+                # Should use the setting key, not the env key!
+                self.assertEqual(keys.get("gemini"), ["settings-gemini-key"])
+
+    def test_fallback_to_env_when_settings_key_empty(self):
+        with _clean_env(), mock.patch.dict(os.environ, {"GEMINI_API_KEYS": "env-gemini-key"}):
+            with mock.patch("app.llm_providers.get_settings_keys", return_value={"gemini": ""}):
+                keys = lp.load_keys()
+                # Fallback to env key when settings is empty!
+                self.assertEqual(keys.get("gemini"), ["env-gemini-key"])
 
 
 class TestDiagnosisEnabledGate(unittest.TestCase):

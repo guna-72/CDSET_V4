@@ -81,6 +81,21 @@ export function AuthProvider({ children }) {
     return await resetPassword(email);
   };
 
+  const updateUserProfile = async (updates) => {
+    const updated = { ...(userProfile || {}), ...updates };
+    setUserProfile(updated);
+    if (currentUser?.uid) {
+      try {
+        localStorage.setItem(`cd_set_user_${currentUser.uid}`, JSON.stringify(updated));
+      } catch (e) {}
+    }
+    try {
+      const settings = JSON.parse(localStorage.getItem('chaosTutorSettings') || '{}');
+      localStorage.setItem('chaosTutorSettings', JSON.stringify({ ...settings, ...updates }));
+    } catch (e) {}
+    return updated;
+  };
+
   const value = {
     currentUser,
     userProfile,
@@ -88,7 +103,8 @@ export function AuthProvider({ children }) {
     login,
     register,
     logout,
-    sendReset
+    sendReset,
+    updateUserProfile
   };
 
   return (

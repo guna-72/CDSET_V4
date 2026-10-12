@@ -1,14 +1,15 @@
-import { useRef } from 'react';
+import React, { useRef, useImperativeHandle, forwardRef } from 'react';
 import './SpotlightCard.css';
 
-const SpotlightCard = ({ 
+const SpotlightCard = forwardRef(({ 
   children, 
   className = '', 
   spotlightColor = 'rgba(99, 102, 241, 0.25)',
   style = {},
   ...props
-}) => {
+}, ref) => {
   const divRef = useRef(null);
+  useImperativeHandle(ref, () => divRef.current);
 
   const handleMouseMove = e => {
     if (!divRef.current) return;
@@ -32,6 +33,6 @@ const SpotlightCard = ({
       {children}
     </div>
   );
-};
+});
 
 export default SpotlightCard;

@@ -52,6 +52,7 @@ backend/data/storage/*
 !backend/data/storage/.gitkeep
 backend/data/workspace/*
 !backend/data/workspace/.gitkeep
+backend/data/settings_keys.json
 
 # Editor & OS files
 .vscode/

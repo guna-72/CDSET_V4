@@ -109,18 +109,97 @@ def _parse_keys(raw: str) -> list[str]:
     return out
 
 
+_SETTINGS_KEYS_FILE = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "settings_keys.json"
+)
+_RUNTIME_SETTINGS = {}
+
+
+def get_settings_keys() -> dict:
+    """Read API keys saved in user settings."""
+    global _RUNTIME_SETTINGS
+    if _RUNTIME_SETTINGS:
+        return dict(_RUNTIME_SETTINGS)
+    if os.path.exists(_SETTINGS_KEYS_FILE):
+        try:
+            with open(_SETTINGS_KEYS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    return data
+        except Exception:
+            pass
+    return {}
+
+
+def save_settings_keys(keys: dict) -> dict:
+    """Save API keys in user settings."""
+    global _RUNTIME_SETTINGS
+    cleaned = {str(k).lower().strip(): str(v).strip() for k, v in (keys or {}).items() if str(v).strip()}
+    _RUNTIME_SETTINGS = dict(cleaned)
+    try:
+        os.makedirs(os.path.dirname(_SETTINGS_KEYS_FILE), exist_ok=True)
+        with open(_SETTINGS_KEYS_FILE, "w", encoding="utf-8") as f:
+            json.dump(cleaned, f, indent=2)
+    except Exception as e:
+        print(f"[llm_providers] Failed to write settings_keys.json: {e}")
+    return cleaned
+
+
 def load_keys() -> dict:
-    """provider -> ordered list of configured keys (plural env var first,
-    then the singular one folded in if it adds a new key)."""
+    """provider -> ordered list of configured keys.
+    RULE:
+    1. First check in settings: if a key exists in settings for a provider,
+       USE THAT KEY.
+    2. Else check the API keys in the env file / os.environ.
+    """
+    settings = get_settings_keys()
     keys_by_provider = {}
     for provider in _PROVIDER_ORDER:
-        keys = _parse_keys(os.environ.get(_ENV_VAR_BY_PROVIDER[provider], ""))
-        singular = os.environ.get(_SINGULAR_ENV_VAR_BY_PROVIDER[provider], "").strip()
-        if singular and singular not in keys:
-            keys.append(singular)
-        if keys:
-            keys_by_provider[provider] = keys
+        provider_keys = []
+        # Step 1: Check in settings first
+        val = settings.get(provider) or settings.get(provider.lower())
+        if val and isinstance(val, str) and val.strip():
+            provider_keys = _parse_keys(val.strip())
+
+        # Step 2: Else check the API keys in the env file (.env / os.environ)
+        if not provider_keys:
+            env_keys = _parse_keys(os.environ.get(_ENV_VAR_BY_PROVIDER[provider], ""))
+            singular = os.environ.get(_SINGULAR_ENV_VAR_BY_PROVIDER[provider], "").strip()
+            if singular and singular not in env_keys:
+                env_keys.append(singular)
+            provider_keys = env_keys
+
+        if provider_keys:
+            keys_by_provider[provider] = provider_keys
     return keys_by_provider
+
+
+def get_keys_source_info() -> dict:
+    """Returns details for each provider showing if the key comes from 'settings', '.env', or 'none'."""
+    settings = get_settings_keys()
+    info = {}
+    for provider in _PROVIDER_ORDER:
+        val = settings.get(provider) or settings.get(provider.lower())
+        has_setting = bool(val and str(val).strip())
+        env_keys = _parse_keys(os.environ.get(_ENV_VAR_BY_PROVIDER[provider], ""))
+        singular = os.environ.get(_SINGULAR_ENV_VAR_BY_PROVIDER[provider], "").strip()
+        has_env = bool(env_keys or singular)
+        if has_setting:
+            info[provider] = {
+                "source": "settings",
+                "active": True,
+                "masked": _mask(val.strip().split(",")[0]),
+            }
+        elif has_env:
+            key_sample = env_keys[0] if env_keys else singular
+            info[provider] = {
+                "source": "env",
+                "active": True,
+                "masked": _mask(key_sample),
+            }
+        else:
+            info[provider] = {"source": "none", "active": False, "masked": None}
+    return info
 
 
 def _mask(key: str) -> str:
@@ -148,8 +227,8 @@ class KeyPool:
 
     def rotation_order(self) -> list:
         """Full pool starting at the current rotation position; advances
-        the position for the next call. Re-reads env vars each time, so
-        keys added/removed between calls take effect immediately."""
+        the position for the next call. Re-reads settings and env vars each time,
+        so keys added/removed between calls take effect immediately."""
         pool = self.entries()
         if not pool:
             return []
@@ -174,11 +253,9 @@ def explicitly_enabled() -> bool:
 
 
 def diagnosis_enabled() -> bool:
-    """The real gate diagnose_run() checks. Deliberately requires BOTH
-    at least one configured key AND an explicit opt-in env var —
-    pasting keys in alone must never silently start spending them. See
-    the "Configuring LLM diagnosis" section of the README."""
-    return any_keys_configured() and explicitly_enabled()
+    """The real gate diagnose_run() checks. Enabled if keys are present
+    and either explicit opt-in env var is set OR keys are configured in settings."""
+    return any_keys_configured() and (explicitly_enabled() or bool(get_settings_keys()))
 
 
 def configured_providers() -> list:

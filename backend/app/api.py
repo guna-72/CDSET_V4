@@ -119,7 +119,43 @@ def key_status(req):
             result = llm_providers.check_api_key(provider, key)
             result["index"] = index
             results.append(result)
-    return 200, {"keys": results, "configured": bool(results)}
+    return 200, {
+        "keys": results,
+        "configured": bool(results),
+        "source_info": llm_providers.get_keys_source_info(),
+    }
+
+
+@router.get("/settings/keys")
+def get_settings_keys(req):
+    """Get status of API keys configured in settings vs backend .env."""
+    from app import llm_providers
+    saved = llm_providers.get_settings_keys()
+    masked_settings = {p: llm_providers._mask(k) for p, k in saved.items() if k}
+    return 200, {
+        "settings_keys": masked_settings,
+        "source_info": llm_providers.get_keys_source_info(),
+        "configured": llm_providers.any_keys_configured(),
+    }
+
+
+@router.post("/settings/keys")
+def save_settings_keys(req):
+    """Save or update API keys in user settings. Empty strings clear the setting
+    for that provider so it falls back to the .env file."""
+    from app import llm_providers
+    body = req.json()
+    keys = body.get("keys", body) if isinstance(body, dict) else {}
+    if not isinstance(keys, dict):
+        raise HTTPError(400, "keys must be an object")
+    saved = llm_providers.save_settings_keys(keys)
+    masked_settings = {p: llm_providers._mask(k) for p, k in saved.items() if k}
+    return 200, {
+        "success": True,
+        "settings_keys": masked_settings,
+        "source_info": llm_providers.get_keys_source_info(),
+        "configured": llm_providers.any_keys_configured(),
+    }
 
 @router.get("/capabilities")
 def capabilities(req):
