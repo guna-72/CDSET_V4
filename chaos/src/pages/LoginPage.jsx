@@ -4,12 +4,25 @@ import BlurText from '../components/BlurText';
 import { useAuth } from '../context/AuthContext';
 import { getAuthErrorMessage } from '../firebase';
 
-export default function LoginPage({ setCurrentView }) {
+export default function LoginPage({ setCurrentView, redirectAfterLogin, setRedirectAfterLogin }) {
   const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const targetDestination = redirectAfterLogin || (() => {
+    try { return sessionStorage.getItem('redirectAfterLogin'); } catch { return null; }
+  })();
+
+  const getDestinationLabel = (target) => {
+    switch (target) {
+      case 'overview': return 'Documentation & Architecture';
+      case 'settings': return 'Developer Support & Settings';
+      case 'chaos-lab': return 'Chaos Lab & Experiment Deployment';
+      default: return null;
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -23,7 +36,15 @@ export default function LoginPage({ setCurrentView }) {
     setLoading(true);
     try {
       await login(email.trim(), password);
-      setCurrentView('dashboard');
+      let destination = redirectAfterLogin;
+      if (!destination) {
+        try { destination = sessionStorage.getItem('redirectAfterLogin'); } catch {}
+      }
+      destination = destination || 'dashboard';
+
+      try { sessionStorage.removeItem('redirectAfterLogin'); } catch {}
+      if (setRedirectAfterLogin) setRedirectAfterLogin(null);
+      setCurrentView(destination);
     } catch (err) {
       setError(getAuthErrorMessage(err.code));
     } finally {
@@ -59,7 +80,11 @@ export default function LoginPage({ setCurrentView }) {
       {/* Back to Home Button */}
       <button 
         className="btn-secondary"
-        onClick={() => setCurrentView('landing')}
+        onClick={() => {
+          try { sessionStorage.removeItem('redirectAfterLogin'); } catch {}
+          if (setRedirectAfterLogin) setRedirectAfterLogin(null);
+          setCurrentView('landing');
+        }}
         style={{
           position: 'absolute',
           top: '30px',
@@ -100,9 +125,28 @@ export default function LoginPage({ setCurrentView }) {
         <div style={{ textAlign: 'center', marginBottom: '6px' }}>
           <BlurText as="h2" text="CD-SET" animateBy="letters" delay={20} style={{ fontSize: '24px', fontWeight: '700', color: '#fff', margin: 0, textAlign: 'center' }} />
         </div>
-        <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+        <div style={{ textAlign: 'center', marginBottom: targetDestination && getDestinationLabel(targetDestination) ? '16px' : '28px' }}>
           <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0 }}>Log in to your command center</p>
         </div>
+
+        {/* Destination Intent Notice */}
+        {targetDestination && getDestinationLabel(targetDestination) && (
+          <div style={{
+            background: 'rgba(99, 102, 241, 0.12)',
+            border: '1px solid rgba(99, 102, 241, 0.3)',
+            borderRadius: '8px',
+            padding: '10px 14px',
+            marginBottom: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            color: '#c7d2fe',
+            fontSize: '12px'
+          }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#818cf8', flexShrink: 0 }} />
+            <span>Sign in to continue to <strong>{getDestinationLabel(targetDestination)}</strong></span>
+          </div>
+        )}
 
         {/* Error Alert */}
         {error && (

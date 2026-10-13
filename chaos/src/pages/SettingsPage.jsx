@@ -264,6 +264,24 @@ export default function SettingsPage({ setCurrentView }) {
     transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
   };
 
+  const textViewStyle = {
+    width: '100%',
+    background: 'rgba(255, 255, 255, 0.03)',
+    border: '1px solid rgba(255, 255, 255, 0.08)',
+    borderRadius: '8px',
+    padding: '10px 14px',
+    color: '#f1f5f9',
+    fontSize: '13px',
+    fontWeight: '500',
+    minHeight: '41px',
+    display: 'flex',
+    alignItems: 'center',
+    boxSizing: 'border-box',
+    userSelect: 'text',
+    cursor: 'default',
+    letterSpacing: '0.2px',
+  };
+
   const labelStyle = {
     fontSize: '11px',
     fontWeight: '700',
@@ -529,13 +547,11 @@ export default function SettingsPage({ setCurrentView }) {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div>
                   <label style={labelStyle}><User size={12} /> DISPLAY NAME</label>
-                  <input
-                    type="text"
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    placeholder="e.g. John Doe"
-                    style={inputStyle}
-                  />
+                  <div style={textViewStyle} title="Display Name">
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {displayName || 'Operator'}
+                    </span>
+                  </div>
                 </div>
                 <div>
                   <label style={labelStyle}><Briefcase size={12} /> ROLE ASSIGNMENT</label>
@@ -554,13 +570,11 @@ export default function SettingsPage({ setCurrentView }) {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div>
                   <label style={labelStyle}><Mail size={12} /> EMAIL ADDRESS</label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="operator@company.com"
-                    style={inputStyle}
-                  />
+                  <div style={textViewStyle} title="Email Address">
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {email || 'operator@chaostutor.local'}
+                    </span>
+                  </div>
                 </div>
                 <div>
                   <label style={labelStyle}><Award size={12} /> DEPARTMENT / TEAM</label>

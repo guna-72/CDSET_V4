@@ -11,8 +11,31 @@ import {
 } from 'lucide-react';
 import BlurText from '../components/BlurText';
 import SpotlightCard from '../components/SpotlightCard';
+import { useAuth } from '../context/AuthContext';
 
-export default function LandingPage({ setCurrentView }) {
+export default function LandingPage({ setCurrentView, setRedirectAfterLogin }) {
+  const { currentUser } = useAuth();
+
+  const handleProtectedNavigation = (destination) => {
+    if (currentUser) {
+      setCurrentView(destination);
+    } else {
+      try {
+        sessionStorage.setItem('redirectAfterLogin', destination);
+      } catch {}
+      if (setRedirectAfterLogin) setRedirectAfterLogin(destination);
+      setCurrentView('login', destination);
+    }
+  };
+
+  const handleSignIn = () => {
+    try {
+      sessionStorage.removeItem('redirectAfterLogin');
+    } catch {}
+    if (setRedirectAfterLogin) setRedirectAfterLogin(null);
+    setCurrentView('login', null);
+  };
+
   return (
     <div style={{ minHeight: '100vh', color: '#fff', position: 'relative', zIndex: 1, paddingBottom: '60px' }}>
       {/* Top Navbar */}
@@ -42,22 +65,36 @@ export default function LandingPage({ setCurrentView }) {
           </div>
 
           <nav style={{ display: 'flex', gap: '20px', fontSize: '13px', color: '#94a3b8' }}>
-            <a href="#docs" className="nav-link" onClick={(e) => { e.preventDefault(); setCurrentView('overview'); }} style={{ color: '#94a3b8' }}>Docs</a>
-            <a href="#support" className="nav-link" onClick={(e) => { e.preventDefault(); setCurrentView('settings'); }} style={{ color: '#94a3b8' }}>Support</a>
+            <a 
+              href="#docs" 
+              className="nav-link" 
+              onClick={(e) => { e.preventDefault(); handleProtectedNavigation('overview'); }} 
+              style={{ color: '#94a3b8', cursor: 'pointer' }}
+            >
+              Docs
+            </a>
+            <a 
+              href="#support" 
+              className="nav-link" 
+              onClick={(e) => { e.preventDefault(); handleProtectedNavigation('settings'); }} 
+              style={{ color: '#94a3b8', cursor: 'pointer' }}
+            >
+              Support
+            </a>
           </nav>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <button
             className="btn-secondary"
-            onClick={() => setCurrentView('login')}
+            onClick={handleSignIn}
           >
             <LogIn size={14} />
             Sign In
           </button>
           <button
             className="btn-danger"
-            onClick={() => setCurrentView('chaos-lab')}
+            onClick={() => handleProtectedNavigation('chaos-lab')}
           >
             Deploy Experiment
           </button>
@@ -117,7 +154,7 @@ export default function LandingPage({ setCurrentView }) {
           <button
             className="btn-primary"
             style={{ padding: '12px 24px', fontSize: '15px' }}
-            onClick={() => setCurrentView('login')}
+            onClick={handleSignIn}
           >
             <LogIn size={16} />
             Sign In
@@ -125,7 +162,7 @@ export default function LandingPage({ setCurrentView }) {
           <button
             className="btn-secondary"
             style={{ padding: '12px 24px', fontSize: '15px' }}
-            onClick={() => setCurrentView('overview')}
+            onClick={() => handleProtectedNavigation('overview')}
           >
             <BookOpen size={16} />
             Explore Docs

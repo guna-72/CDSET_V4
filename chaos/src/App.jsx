@@ -96,6 +96,13 @@ function AppShell() {
   // from localStorage, which is why the app could reopen on the dashboard.)
   const [currentView, setCurrentView] = useState('landing');
   const [selectedProjectId, setSelectedProjectId] = useState(() => localStorage.getItem('chaosTutorProjectId') || '');
+  const [redirectAfterLogin, setRedirectAfterLogin] = useState(() => {
+    try {
+      return sessionStorage.getItem('redirectAfterLogin') || null;
+    } catch {
+      return null;
+    }
+  });
 
   const isShell = !NO_SHELL_VIEWS.includes(currentView);
   const lfConfig = getLightfallConfig(currentView);
@@ -103,8 +110,18 @@ function AppShell() {
   // Remember where the user was so a page refresh doesn't dump them back
   // to the landing page. Auth/landing views are intentionally excluded —
   // those should always start fresh.
-  const goToView = (view) => {
+  const goToView = (view, targetRedirect = undefined) => {
     setCurrentView(view);
+    if (targetRedirect !== undefined) {
+      setRedirectAfterLogin(targetRedirect);
+      try {
+        if (targetRedirect) {
+          sessionStorage.setItem('redirectAfterLogin', targetRedirect);
+        } else {
+          sessionStorage.removeItem('redirectAfterLogin');
+        }
+      } catch {}
+    }
     if (NO_SHELL_VIEWS.includes(view)) {
       localStorage.removeItem('chaosTutorView');
     } else {
@@ -129,7 +146,13 @@ function AppShell() {
   }, [firebaseConfigured, loading, currentUser, isShell]);
 
   const renderPage = () => {
-    const props = { setCurrentView: goToView, selectedProjectId, setSelectedProjectId };
+    const props = { 
+      setCurrentView: goToView, 
+      selectedProjectId, 
+      setSelectedProjectId,
+      redirectAfterLogin,
+      setRedirectAfterLogin
+    };
     switch (currentView) {
       case 'landing':         return <LandingPage {...props} />;
       case 'login':           return <LoginPage {...props} />;
