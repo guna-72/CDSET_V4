@@ -44,6 +44,8 @@ tests-ui/.out/
 
 # Logs
 logs/*.log
+logs/running_pids.txt
+logs/*.txt
 *.log
 
 # Database and local user data

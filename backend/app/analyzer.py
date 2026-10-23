@@ -808,7 +808,10 @@ class _PyVisitor(ast.NodeVisitor):
         # `self.path == "/x"` / `parsed.path != "/y"` / `.path.startswith("/z")`
         # inside a do_GET/do_POST/... method body -> a real, literal endpoint.
         if self._current_handler_method:
-            left_is_path = isinstance(node.left, ast.Attribute) and node.left.attr == "path"
+            left_is_path = (
+                (isinstance(node.left, ast.Attribute) and node.left.attr == "path")
+                or (isinstance(node.left, ast.Name) and node.left.id.lower() in ("path", "pathname", "route", "url_path"))
+            )
             if left_is_path and len(node.ops) == 1 and isinstance(node.ops[0], (ast.Eq, ast.NotEq)):
                 cmp = node.comparators[0]
                 if isinstance(cmp, ast.Constant) and isinstance(cmp.value, str):

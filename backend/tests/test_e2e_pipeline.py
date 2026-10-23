@@ -51,6 +51,12 @@ class TestEndToEndPipeline(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
+        # SQLite connections are thread-local and remain open on the test
+        # runner thread. Windows refuses to delete an open database file.
+        conn = getattr(db._local, "conn", None)
+        if conn is not None:
+            conn.close()
+            del db._local.conn
         for f in (_TEST_DB, _TEST_DB + "-wal", _TEST_DB + "-shm"):
             if os.path.exists(f):
                 os.remove(f)

@@ -124,6 +124,36 @@ class RunControlTests(unittest.TestCase):
         self.assertEqual(db.get_one("experiment_runs", queued)["status"], "CANCELLED")
 
 
+class ActiveHandleRegistryTests(unittest.TestCase):
+    class UnhashableHandle:
+        def __init__(self):
+            self.killed = False
+
+        def __eq__(self, other):
+            return self is other
+
+        def kill(self):
+            self.killed = True
+
+    def test_unhashable_handle_can_be_registered_removed_and_cancelled(self):
+        run_id = "unhashable-handle-regression"
+        handle = self.UnhashableHandle()
+        try:
+            orchestrator.register_active_handle(run_id, handle)
+            orchestrator.register_active_handle(run_id, handle)
+            self.assertEqual(orchestrator._active_handles[run_id], [handle])
+
+            orchestrator.unregister_active_handle(run_id, handle)
+            self.assertNotIn(run_id, orchestrator._active_handles)
+
+            orchestrator.register_active_handle(run_id, handle)
+            orchestrator.cancel_active_handles(run_id)
+            self.assertTrue(handle.killed)
+            self.assertNotIn(run_id, orchestrator._active_handles)
+        finally:
+            orchestrator._active_handles.pop(run_id, None)
+
+
 class CliGatingTests(unittest.TestCase):
     def _exp(self, fault):
         return {"fault_type": fault}

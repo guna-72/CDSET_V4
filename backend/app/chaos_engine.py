@@ -206,11 +206,15 @@ def _env_defaults(profile: dict, exclude: str | None = None) -> dict:
     testing."""
     names = (profile.get("components") or {}).get("env_vars") or []
     ex = (exclude or "").upper()
-    return {
-        name: "1"
-        for name in names
-        if name != "PORT" and name.upper() not in SYSTEM_ENV_KEYS and name.upper() != ex
-    }
+    defaults = {}
+    for name in names:
+        u = name.upper()
+        if name != "PORT" and u not in SYSTEM_ENV_KEYS and u != ex:
+            if u in ("HOST", "HOSTNAME", "BIND_HOST", "SERVER_HOST"):
+                defaults[name] = "127.0.0.1"
+            else:
+                defaults[name] = "1"
+    return defaults
 
 
 def _ensure_stopped(handle):

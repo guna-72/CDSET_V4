@@ -42,7 +42,11 @@ def register_active_handle(run_id: str, handle):
     if not run_id or not handle:
         return
     with _handle_lock:
-        _active_handles.setdefault(run_id, set()).add(handle)
+        handles = _active_handles.setdefault(run_id, [])
+        # ServiceHandle is a mutable dataclass and intentionally unhashable.
+        # Track it by object identity rather than requiring hash/equality.
+        if not any(existing is handle for existing in handles):
+            handles.append(handle)
 
 def unregister_active_handle(run_id: str, handle):
     if not run_id or not handle:
@@ -50,13 +54,13 @@ def unregister_active_handle(run_id: str, handle):
     with _handle_lock:
         s = _active_handles.get(run_id)
         if s:
-            s.discard(handle)
+            s[:] = [existing for existing in s if existing is not handle]
             if not s:
                 _active_handles.pop(run_id, None)
 
 def cancel_active_handles(run_id: str):
     with _handle_lock:
-        handles = list(_active_handles.pop(run_id, set()))
+        handles = list(_active_handles.pop(run_id, []))
     for h in handles:
         try:
             if hasattr(h, "proc") and h.proc:
