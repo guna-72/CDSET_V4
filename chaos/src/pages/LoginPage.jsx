@@ -46,7 +46,11 @@ export default function LoginPage({ setCurrentView, redirectAfterLogin, setRedir
       if (setRedirectAfterLogin) setRedirectAfterLogin(null);
       setCurrentView(destination);
     } catch (err) {
-      setError(getAuthErrorMessage(err.code));
+      if (err.message && !err.code) {
+        setError(err.message);
+      } else {
+        setError(getAuthErrorMessage(err.code));
+      }
     } finally {
       setLoading(false);
     }
