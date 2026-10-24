@@ -49,6 +49,7 @@ export default function IdePage({ selectedProjectId, setCurrentView }) {
   const [programInput, setProgramInput] = useState('');
   const [terminalLines, setTerminalLines] = useState([]);
   const [expanded, setExpanded] = useState({});
+  const [filesError, setFilesError] = useState('');
   const [projectName, setProjectName] = useState('Selected project');
   const [cursorPos, setCursorPos] = useState({ line: 1, col: 1 });
   const textareaRef = React.useRef(null);
