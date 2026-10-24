@@ -49,8 +49,41 @@ export default function IdePage({ selectedProjectId, setCurrentView }) {
   const [programInput, setProgramInput] = useState('');
   const [terminalLines, setTerminalLines] = useState([]);
   const [expanded, setExpanded] = useState({});
-  const [filesError, setFilesError] = useState('');
   const [projectName, setProjectName] = useState('Selected project');
+  const [cursorPos, setCursorPos] = useState({ line: 1, col: 1 });
+  const textareaRef = React.useRef(null);
+  const gutterRef = React.useRef(null);
+
+  const handleScroll = e => {
+    if (gutterRef.current) {
+      gutterRef.current.scrollTop = e.target.scrollTop;
+    }
+  };
+
+  const updateCursorPos = e => {
+    const text = e?.target?.value ?? content ?? '';
+    const selStart = e?.target?.selectionStart ?? 0;
+    const linesUpToCursor = text.substring(0, selStart).split('\n');
+    const currentLine = linesUpToCursor.length;
+    const currentCol = linesUpToCursor[linesUpToCursor.length - 1].length + 1;
+    setCursorPos({ line: currentLine, col: currentCol });
+  };
+
+  const handleKeyDown = e => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const start = e.target.selectionStart;
+      const end = e.target.selectionEnd;
+      const newContent = content.substring(0, start) + '    ' + content.substring(end);
+      setContent(newContent);
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.selectionStart = textareaRef.current.selectionEnd = start + 4;
+          updateCursorPos({ target: textareaRef.current });
+        }
+      }, 0);
+    }
+  };
 
   const loadFiles = async () => {
     if (!selectedProjectId) return;
@@ -258,15 +291,95 @@ export default function IdePage({ selectedProjectId, setCurrentView }) {
         </aside>
 
         <section style={{flex:1,display:'flex',flexDirection:'column',minWidth:0,minHeight:0}}>
-          <div style={{padding:'8px 16px',borderBottom:'1px solid rgba(255,255,255,.06)',fontSize:11,color:'#818cf8',background:'rgba(8,11,18,.85)'}}>
-            {activePath || 'Select a file'}{dirty && <span style={{marginLeft:8,color:'#fbbf24'}} title="Unsaved changes">● unsaved</span>}
-            {message && <span style={{marginLeft:16,color:message.includes('failed')||message.includes('Failed')||message.includes('blocked')?'#f87171':'#34d399'}}>{message}</span>}
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 16px',borderBottom:'1px solid rgba(255,255,255,.06)',fontSize:11,background:'rgba(8,11,18,.85)'}}>
+            <div style={{minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+              <span style={{color:'#818cf8',fontWeight:600}}>{activePath || 'Select a file'}</span>
+              {dirty && <span style={{marginLeft:8,color:'#fbbf24'}} title="Unsaved changes">● unsaved</span>}
+              {message && <span style={{marginLeft:16,color:message.includes('failed')||message.includes('Failed')||message.includes('blocked')?'#f87171':'#34d399'}}>{message}</span>}
+            </div>
+            {activePath && (
+              <div style={{display:'flex',alignItems:'center',gap:10,fontFamily:'JetBrains Mono,monospace',fontSize:11,color:'#64748b',flexShrink:0}}>
+                <span style={{background:'rgba(255,255,255,.06)',padding:'2px 8px',borderRadius:4}}>
+                  <strong style={{color:'#c7d2fe'}}>{lines.length}</strong> lines
+                </span>
+                <span style={{background:'rgba(99,102,241,.12)',color:'#a5b4fc',padding:'2px 8px',borderRadius:4}}>
+                  Ln {cursorPos.line}, Col {cursorPos.col}
+                </span>
+              </div>
+            )}
           </div>
-          <div style={{flex:1,overflow:'auto',background:'rgba(8,11,18,.75)',fontFamily:'JetBrains Mono,monospace',fontSize:13}}>
+          <div style={{flex:1,display:'flex',overflow:'hidden',background:'rgba(8,11,18,.75)',fontFamily:'JetBrains Mono,monospace',fontSize:13,position:'relative'}}>
             {loadingFile ? <div style={{padding:24,color:'#64748b'}}>Loading file…</div> :
-              <textarea value={content} onChange={e=>setContent(e.target.value)}
-                spellCheck={false}
-                style={{width:'100%',height:'100%',minHeight:240,resize:'none',border:0,outline:0,padding:'18px 24px',boxSizing:'border-box',background:'transparent',color:'#e2e8f0',font:'13px/1.7 JetBrains Mono,monospace'}} />
+              <>
+                {/* Number count / Line numbers gutter */}
+                <div
+                  ref={gutterRef}
+                  style={{
+                    width: Math.max(48, String(lines.length).length * 9 + 24),
+                    flexShrink: 0,
+                    overflow: 'hidden',
+                    userSelect: 'none',
+                    borderRight: '1px solid rgba(255,255,255,.08)',
+                    background: 'rgba(5,7,12,.9)',
+                    padding: '16px 8px 16px 0',
+                    textAlign: 'right',
+                    font: '13px/22px JetBrains Mono,monospace',
+                    color: '#475569',
+                    boxSizing: 'border-box',
+                  }}
+                >
+                  {lines.map((_, i) => {
+                    const lineNum = i + 1;
+                    const isCurrent = lineNum === cursorPos.line;
+                    return (
+                      <div
+                        key={lineNum}
+                        style={{
+                          height: '22px',
+                          lineHeight: '22px',
+                          color: isCurrent ? '#a5b4fc' : '#475569',
+                          fontWeight: isCurrent ? 700 : 400,
+                          background: isCurrent ? 'rgba(99,102,241,.18)' : 'transparent',
+                          paddingRight: 6,
+                          borderRadius: 2,
+                        }}
+                      >
+                        {lineNum}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Code textarea with synchronized scrolling */}
+                <textarea
+                  ref={textareaRef}
+                  value={content}
+                  onChange={e => { setContent(e.target.value); updateCursorPos(e); }}
+                  onScroll={handleScroll}
+                  onKeyUp={updateCursorPos}
+                  onClick={updateCursorPos}
+                  onKeyDown={handleKeyDown}
+                  spellCheck={false}
+                  style={{
+                    flex: 1,
+                    height: '100%',
+                    minHeight: 240,
+                    resize: 'none',
+                    border: 0,
+                    outline: 0,
+                    padding: '16px 16px',
+                    boxSizing: 'border-box',
+                    background: 'transparent',
+                    color: '#e2e8f0',
+                    font: '13px/22px JetBrains Mono,monospace',
+                    whiteSpace: 'pre',
+                    overflowWrap: 'normal',
+                    overflowX: 'auto',
+                    overflowY: 'auto',
+                    tabSize: 4,
+                  }}
+                />
+              </>
             }
           </div>
           <div style={{height:150,flexShrink:0,borderTop:'1px solid rgba(255,255,255,.08)',background:'rgba(4,6,12,.95)',overflow:'auto',padding:'12px 16px',font:'12px/1.6 JetBrains Mono,monospace'}}>
