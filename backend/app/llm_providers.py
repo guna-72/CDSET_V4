@@ -438,7 +438,7 @@ def _provider_config(provider: str) -> dict:
     registry = {
         "anthropic": {"call": _call_anthropic, "model_env": "ANTHROPIC_MODEL", "default_model": "claude-sonnet-4-6"},
         "openai": {"call": _call_openai, "model_env": "OPENAI_MODEL", "default_model": "gpt-4o-mini"},
-        "gemini": {"call": _call_gemini, "model_env": "GEMINI_MODEL", "default_model": "gemini-2.0-flash"},
+        "gemini": {"call": _call_gemini, "model_env": "GEMINI_MODEL", "default_model": "gemini-3.5-flash-lite"},
         "deepseek": {"call": _call_deepseek, "model_env": "DEEPSEEK_MODEL", "default_model": "deepseek-chat"},
         "groq": {"call": _call_groq, "model_env": "GROQ_MODEL", "default_model": "llama-3.3-70b-versatile"},
         "openrouter": {"call": _call_openrouter, "model_env": "OPENROUTER_MODEL",

@@ -749,7 +749,7 @@ def _call_ai_tutor_backend(ctx: dict, custom_api_key: str | None = None) -> bool
             headers=headers,
             method="POST"
         )
-        with urllib.request.urlopen(req, timeout=14) as resp:
+        with urllib.request.urlopen(req, timeout=8) as resp:
             if resp.status == 200:
                 res = json.loads(resp.read().decode("utf-8"))
                 code = (res.get("replacement_code") or "").strip()

@@ -62,7 +62,7 @@ const requestAiTutorResponse = async ({ question, fault, contextStr, history = [
     // 1. Direct call to ai_tutor_backend Flask service (port 5000)
     try {
         const abortCtrl = new AbortController();
-        const timeoutId = setTimeout(() => abortCtrl.abort(), 12000);
+        const timeoutId = setTimeout(() => abortCtrl.abort(), 8000);
         const headers = { 'Content-Type': 'application/json' };
         if (settingGeminiKey) {
             headers['X-API-Key'] = settingGeminiKey;
@@ -111,7 +111,7 @@ const requestAiTutorExplanation = async ({ fault, service, endpoint, errorMessag
     const effectiveKey = apiKey || getEffectiveApiKey('gemini') || getEffectiveApiKey('auto');
     try {
         const abortCtrl = new AbortController();
-        const timeoutId = setTimeout(() => abortCtrl.abort(), 14000);
+        const timeoutId = setTimeout(() => abortCtrl.abort(), 9000);
         const headers = { 'Content-Type': 'application/json' };
         if (effectiveKey) {
             headers['X-API-Key'] = effectiveKey;

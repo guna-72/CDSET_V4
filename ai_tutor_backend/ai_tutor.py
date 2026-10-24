@@ -33,24 +33,26 @@ if os.getenv("GEMINI_API_KEYS"):
         if k and k not in API_KEYS:
             API_KEYS.append(k)
 
-# Models to try in order of speed and availability
-_preferred = os.getenv("GEMINI_MODEL", "gemini-3.6-flash").strip()
+# Models to try in order of speed and availability (fastest lite models first)
+_preferred = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite").strip()
 _raw_models = [
     _preferred,
-    "gemini-3.6-flash",
-    "gemini-3-flash-preview",
-    "gemini-3.8-flash",
-    "gemini-flash-lite-latest",
-    "gemini-3.1-flash-lite",
     "gemini-3.5-flash-lite",
+    "gemini-flash-lite-latest",
+    "gemini-3.8-flash",
 ]
 CANDIDATE_MODELS = []
 for _m in _raw_models:
     if _m and _m not in CANDIDATE_MODELS:
         CANDIDATE_MODELS.append(_m)
 
-# Request timeout in seconds for each Gemini API call
+# Request timeout in seconds for each Gemini API call (Google API requires minimum 10s deadline)
 GEMINI_TIMEOUT = int(os.getenv("GEMINI_TIMEOUT", "12"))
+
+# In-memory caching & rotation tracking for blazing speed
+_EXPLANATION_CACHE = {}
+_LAST_WORKING_KEY_INDEX = 0
+_LAST_WORKING_MODEL = "gemini-3.5-flash-lite"
 
 
 # ------------------------------------------------
@@ -106,13 +108,32 @@ def generate_ai_response(fault_data, custom_api_key: str | None = None):
     First checks if a key is provided from settings; if present, uses that key.
     Otherwise, checks and falls back to API keys in the .env file.
     """
+    global _LAST_WORKING_KEY_INDEX, _LAST_WORKING_MODEL
+
+    # 0. Instant Cache Lookup (<1ms)
+    cache_key = (
+        str(fault_data.get("fault", "")),
+        str(fault_data.get("file", "")),
+        str(fault_data.get("line", "")),
+        str(fault_data.get("current_code", "")).strip()[:100],
+    )
+    if cache_key in _EXPLANATION_CACHE:
+        print("[ai_tutor] Returning cached explanation and solved code instantly.")
+        return dict(_EXPLANATION_CACHE[cache_key])
+
     # 1. First check in settings: if a key exists, use that key
     if custom_api_key and str(custom_api_key).strip():
         keys_to_try = [str(custom_api_key).strip()]
         print("[ai_tutor] generate_ai_response: Using API key from Settings (priority over .env).")
     else:
         # 2. Else check the API keys in the .env file
-        keys_to_try = list(API_KEYS)
+        raw_keys = list(API_KEYS)
+        if len(raw_keys) > 1:
+            # Start from the last known working key to avoid cycling through exhausted keys
+            idx = _LAST_WORKING_KEY_INDEX % len(raw_keys)
+            keys_to_try = raw_keys[idx:] + raw_keys[:idx]
+        else:
+            keys_to_try = raw_keys
         print(f"[ai_tutor] generate_ai_response: Using {len(keys_to_try)} API key(s) from .env.")
 
     # No API keys configured anywhere
@@ -122,7 +143,19 @@ def generate_ai_response(fault_data, custom_api_key: str | None = None):
 
     prompt = create_prompt(fault_data)
 
-    # Try each candidate API key in rotation
+    # Prioritize last working model
+    models_to_try = list(CANDIDATE_MODELS)
+    if _LAST_WORKING_MODEL in models_to_try:
+        models_to_try.remove(_LAST_WORKING_MODEL)
+        models_to_try.insert(0, _LAST_WORKING_MODEL)
+
+    gen_config = types.GenerateContentConfig(
+        response_mime_type="application/json",
+        max_output_tokens=900,
+        temperature=0.1,
+    )
+
+    # Try candidate API keys
     for key_number, api_key in enumerate(keys_to_try, start=1):
         try:
             client = genai.Client(
@@ -134,11 +167,12 @@ def generate_ai_response(fault_data, custom_api_key: str | None = None):
 
             response = None
             used_model = None
-            for m in CANDIDATE_MODELS:
+            for m in models_to_try:
                 try:
                     response = client.models.generate_content(
                         model=m,
                         contents=prompt,
+                        config=gen_config,
                     )
                     used_model = m
                     break
@@ -155,8 +189,21 @@ def generate_ai_response(fault_data, custom_api_key: str | None = None):
             # Guarantee all required fields exist
             _apply_defaults(result, fault_data)
 
+            # Clean markdown fences from replacement_code if any
+            if "replacement_code" in result and isinstance(result["replacement_code"], str):
+                cleaned = result["replacement_code"].strip()
+                cleaned = re.sub(r"^```[a-zA-Z0-9_-]*\n?", "", cleaned)
+                cleaned = re.sub(r"\n?```$", "", cleaned).strip()
+                result["replacement_code"] = cleaned
+
+            # Update cache and active indices
+            _EXPLANATION_CACHE[cache_key] = result
+            _LAST_WORKING_MODEL = used_model
+            if api_key in API_KEYS:
+                _LAST_WORKING_KEY_INDEX = API_KEYS.index(api_key)
+
             print(
-                f"[ai_tutor] Gemini API key {key_number} succeeded "
+                f"[ai_tutor] Gemini key succeeded in fast path "
                 f"(model={used_model})."
             )
 
@@ -164,7 +211,7 @@ def generate_ai_response(fault_data, custom_api_key: str | None = None):
 
         except Exception as error:
             print(
-                f"[ai_tutor] Gemini API key {key_number} failed: {error}"
+                f"[ai_tutor] Gemini key attempt failed: {error}"
             )
             continue
 
@@ -261,13 +308,20 @@ def chat_with_ai(question: str, fault: str = "", context: str = "", history: lis
     First checks if a custom_api_key is provided from settings. If present, uses that key.
     Otherwise, checks and falls back to API_KEYS loaded from the .env file.
     """
+    global _LAST_WORKING_KEY_INDEX, _LAST_WORKING_MODEL
+
     # 1. First check in settings: if custom_api_key is provided, use that key
     if custom_api_key and str(custom_api_key).strip():
         keys_to_try = [str(custom_api_key).strip()]
         print("[ai_tutor] chat_with_ai: Using API key from Settings (priority over .env).")
     else:
         # 2. Else check the API keys in the .env file
-        keys_to_try = list(API_KEYS)
+        raw_keys = list(API_KEYS)
+        if len(raw_keys) > 1:
+            idx = _LAST_WORKING_KEY_INDEX % len(raw_keys)
+            keys_to_try = raw_keys[idx:] + raw_keys[:idx]
+        else:
+            keys_to_try = raw_keys
         print(f"[ai_tutor] chat_with_ai: Using {len(keys_to_try)} API key(s) from .env.")
 
     if not keys_to_try:
@@ -275,7 +329,7 @@ def chat_with_ai(question: str, fault: str = "", context: str = "", history: lis
 
     history = history or []
     history_lines = []
-    for h in history[-6:]:
+    for h in history[-4:]:
         role = "Student" if h.get("role") == "user" else "Tutor"
         history_lines.append(f"{role}: {h.get('text', '')}")
     history_str = "\n".join(history_lines) if history_lines else "None"
@@ -295,14 +349,24 @@ STUDENT QUESTION:
 {question}
 
 INSTRUCTIONS:
-1. Answer the student's question clearly, practically, and concisely.
+1. Answer the student's question clearly, practically, and concisely (1-3 paragraphs max).
 2. If asking about the error, why it failed, or how to fix it, reference the context and provide a clear explanation with code if needed.
 3. Keep the tone encouraging, educational, and professional.
 4. Reply directly in clear, clean text or markdown (no JSON wrapping).
 """
 
+    models_to_try = list(CANDIDATE_MODELS)
+    if _LAST_WORKING_MODEL in models_to_try:
+        models_to_try.remove(_LAST_WORKING_MODEL)
+        models_to_try.insert(0, _LAST_WORKING_MODEL)
+
+    chat_config = types.GenerateContentConfig(
+        max_output_tokens=450,
+        temperature=0.3,
+    )
+
     for key_number, api_key in enumerate(keys_to_try, start=1):
-        for model_name in CANDIDATE_MODELS:
+        for model_name in models_to_try:
             try:
                 client = genai.Client(
                     api_key=api_key,
@@ -313,11 +377,15 @@ INSTRUCTIONS:
                 response = client.models.generate_content(
                     model=model_name,
                     contents=prompt,
+                    config=chat_config,
                 )
                 if response.text and response.text.strip():
+                    _LAST_WORKING_MODEL = model_name
+                    if api_key in API_KEYS:
+                        _LAST_WORKING_KEY_INDEX = API_KEYS.index(api_key)
                     return response.text.strip()
             except Exception as e:
-                print(f"[ai_tutor] chat_with_ai key {key_number} ({model_name}) error: {e}")
+                print(f"[ai_tutor] chat_with_ai key attempt ({model_name}) error: {e}")
                 continue
 
     return "I am currently unable to reach the AI model. Please verify your Gemini API key and internet connectivity."
