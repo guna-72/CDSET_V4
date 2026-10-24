@@ -42,7 +42,10 @@ const buildContextStr = (ctx, diag) => {
 };
 
 const AI_TUTOR_BASE_URL = (() => {
-    const envUrl = (import.meta.env.VITE_AI_TUTOR_URL || '').replace(/\/$/, '');
+    let envUrl = (import.meta.env.VITE_AI_TUTOR_URL || '').trim().replace(/\/$/, '');
+    if (envUrl && !envUrl.startsWith('http://') && !envUrl.startsWith('https://')) {
+        envUrl = `https://${envUrl}`;
+    }
     if (envUrl) return envUrl;
     if (typeof window !== 'undefined' && window.location && window.location.hostname) {
         const host = window.location.hostname;

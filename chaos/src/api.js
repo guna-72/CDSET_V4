@@ -3,7 +3,10 @@ import { auth } from './firebase';
 import { friendlyError } from './utils/friendlyError';
 
 const API_BASE=(() => {
-  const envUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+  let envUrl = (import.meta.env.VITE_API_URL || '').trim().replace(/\/$/, '');
+  if (envUrl && !envUrl.startsWith('http://') && !envUrl.startsWith('https://')) {
+    envUrl = `https://${envUrl}`;
+  }
   if (typeof window !== 'undefined' && window.location && window.location.hostname) {
     const host = window.location.hostname;
     // When accessed over the network (e.g. from mobile phone or other PC via LAN IP),

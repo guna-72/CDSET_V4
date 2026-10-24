@@ -2,7 +2,7 @@ services:
   # 1. Main Backend Web Service (Free Tier)
   - type: web
     name: chaos-tutor-backend
-    env: python
+    runtime: python
     region: oregon
     plan: free
     buildCommand: "pip install -r backend/requirements.txt -r ai_tutor_backend/requirements.txt"
@@ -13,16 +13,16 @@ services:
       - key: CHAOS_TUTOR_ALLOW_DEGRADED_SANDBOX
         value: "true"
       - key: GEMINI_API_KEY
-        sync: false # Set in Render Dashboard -> Environment
+        sync: false # Enter your Gemini API key in Render Dashboard
       - key: AI_TUTOR_BASE_URL
         value: "http://127.0.0.1:5000"
 
   # 2. React Vite Frontend Static Site (Free Tier - Unlimited Bandwidth)
-  - type: static
+  - type: web
     name: chaos-tutor-frontend
-    rootDir: chaos
-    buildCommand: "npm install && npm run build"
-    staticPublishPath: dist
+    runtime: static
+    buildCommand: "cd chaos && npm install && npm run build"
+    staticPublishPath: ./chaos/dist
     routes:
       - type: rewrite
         source: /*
