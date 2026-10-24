@@ -1,0 +1,10 @@
+**/node_modules
+**/__pycache__
+**/.pytest_cache
+**/.git
+**/.env
+logs/
+backend/data/projects/*
+backend/data/uploads/*
+!backend/data/projects/.gitkeep
+!backend/data/uploads/.gitkeep

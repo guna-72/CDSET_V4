@@ -22,6 +22,7 @@ import os
 import pathlib
 import re
 import sys
+import urllib.request
 
 from app import db, llm_providers
 
@@ -615,7 +616,7 @@ def _imports_needed(fault, lang, text, replacement) -> list:
 
 # ------------------------------------------------------------------ public API
 
-def build_context(run: dict, use_llm: bool = True) -> dict:
+def build_context(run: dict, use_llm: bool = True, custom_api_key: str | None = None) -> dict:
     project = db.get_one("projects", run["project_id"]) or {}
     exp = db.get_one("experiments", run["experiment_id"]) or {}
     params = db.loads(exp.get("parameters_json")) or {}
@@ -676,28 +677,136 @@ def build_context(run: dict, use_llm: bool = True) -> dict:
     if not ctx["tutor_needed"]:
         return ctx
 
-    try:
-        fix = _build_fix(fault, params, lang, text, lines, idx)
-    except Exception as e:
-        print(f"[tutor_context] fix generation failed: {e}", file=sys.stderr)
-        fix = None
-    if fix and fix.get("replacement"):
-        new_window = lines[win_start:fix["start"]] + fix["replacement"] + lines[fix["end"] + 1:win_end + 1]
-        ctx["fix"] = {
-            "title": fix["title"], "notes": fix["notes"], "extras": fix["extras"],
-            "imports": _imports_needed(fault, lang, text, fix["replacement"]),
-            "file": rel, "language": lang,
-            "code": "\n".join(new_window), "method": "rule_based",
-        }
-    elif fix:
-        ctx["fix"] = {"title": fix["title"], "notes": fix["notes"], "extras": fix["extras"],
-                      "imports": [], "file": rel, "language": lang, "code": None, "method": "rule_based"}
-    if use_llm and ctx["fix"] is not None and llm_providers.diagnosis_enabled():
+    # 1. Primary: Delegate to ai_tutor_backend to get the genuine AI solved code and explanation
+    ai_applied = False
+    if use_llm:
         try:
-            _refine_with_llm(ctx)
-        except Exception as e:  # silent fallback, same policy as diagnosis.py
-            print(f"[tutor_context] LLM refinement failed, keeping rule-based fix: {e}", file=sys.stderr)
+            ai_applied = _call_ai_tutor_backend(ctx, custom_api_key=custom_api_key)
+        except Exception as e:
+            print(f"[tutor_context] ai_tutor_backend error: {e}", file=sys.stderr)
+            ai_applied = False
+
+    # 2. Fallback: If ai_tutor_backend was unreachable, use rule-based fallback
+    if not ai_applied:
+        try:
+            fix = _build_fix(fault, params, lang, text, lines, idx)
+        except Exception as e:
+            print(f"[tutor_context] fix generation failed: {e}", file=sys.stderr)
+            fix = None
+        if fix and fix.get("replacement"):
+            new_window = lines[win_start:fix["start"]] + fix["replacement"] + lines[fix["end"] + 1:win_end + 1]
+            ctx["fix"] = {
+                "title": fix["title"], "notes": fix["notes"], "extras": fix["extras"],
+                "imports": _imports_needed(fault, lang, text, fix["replacement"]),
+                "file": rel, "language": lang,
+                "code": "\n".join(new_window), "method": "rule_based",
+            }
+        elif fix:
+            ctx["fix"] = {"title": fix["title"], "notes": fix["notes"], "extras": fix["extras"],
+                          "imports": [], "file": rel, "language": lang, "code": None, "method": "rule_based"}
+        if use_llm and ctx["fix"] is not None and llm_providers.diagnosis_enabled():
+            try:
+                _refine_with_llm(ctx)
+            except Exception as e:  # silent fallback
+                print(f"[tutor_context] LLM refinement failed, keeping rule-based fix: {e}", file=sys.stderr)
+
     return ctx
+
+
+def _call_ai_tutor_backend(ctx: dict, custom_api_key: str | None = None) -> bool:
+    """Delegate code fix and explanation to ai_tutor_backend (Flask on port 5000 or direct import)."""
+    code_info = ctx.get("code") or {}
+    diag_info = ctx.get("diagnosis") or {}
+    injected_info = ctx.get("injected") or {}
+    project_info = ctx.get("project") or {}
+    exp_info = ctx.get("experiment") or {}
+
+    fault_label = injected_info.get("label") or exp_info.get("name") or exp_info.get("fault_type") or "Fault"
+    current_code = code_info.get("raw_snippet") or code_info.get("snippet") or ""
+
+    fault_data = {
+        "fault": fault_label,
+        "service": project_info.get("name") or "Application",
+        "endpoint": exp_info.get("target") or "Not specified",
+        "error_message": diag_info.get("failure") or diag_info.get("root_cause") or injected_info.get("description") or "",
+        "file": code_info.get("file") or "unknown",
+        "line": code_info.get("line") or 1,
+        "current_code": current_code,
+        "details": injected_info.get("description") or "",
+    }
+    if custom_api_key:
+        fault_data["api_key"] = custom_api_key
+
+    # 1. Try ai_tutor_backend HTTP service (port 5000)
+    try:
+        req_data = json.dumps(fault_data).encode("utf-8")
+        headers = {"Content-Type": "application/json"}
+        if custom_api_key:
+            headers["X-API-Key"] = custom_api_key
+        req = urllib.request.Request(
+            "http://127.0.0.1:5000/api/ai-tutor",
+            data=req_data,
+            headers=headers,
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=14) as resp:
+            if resp.status == 200:
+                res = json.loads(resp.read().decode("utf-8"))
+                code = (res.get("replacement_code") or "").strip()
+                if code and not code.lower().startswith("gemini api keys are not configured"):
+                    _apply_ai_tutor_result(ctx, res)
+                    return True
+    except Exception:
+        pass
+
+    # 2. Try direct import of ai_tutor_backend module
+    try:
+        candidate_dirs = [
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "ai_tutor_backend")),
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "ai_tutor_backend")),
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "ai_tutor_backend")),
+            r"C:\Users\pc\Downloads\ai_tutor_backend",
+        ]
+        ai_tutor_dir = next((d for d in candidate_dirs if os.path.exists(os.path.join(d, "ai_tutor.py"))), None)
+        if ai_tutor_dir:
+            if ai_tutor_dir not in sys.path:
+                sys.path.insert(0, ai_tutor_dir)
+            import ai_tutor
+            res = ai_tutor.generate_ai_response(fault_data, custom_api_key=custom_api_key)
+            code = (res.get("replacement_code") or "").strip()
+            if code and not code.lower().startswith("gemini api keys are not configured"):
+                _apply_ai_tutor_result(ctx, res)
+                return True
+    except Exception as e:
+        print(f"[tutor_context] direct ai_tutor_backend call error: {e}", file=sys.stderr)
+
+    return False
+
+
+def _apply_ai_tutor_result(ctx: dict, res: dict):
+    code_info = ctx.get("code") or {}
+    rel = code_info.get("file", "unknown")
+    lang = code_info.get("language", "python")
+    fault_label = ctx.get("injected", {}).get("label") or "Chaos Fault"
+    replacement_code = (res.get("replacement_code") or "").strip()
+
+    ctx["fix"] = {
+        "title": f"Resilient Solved Fix for {fault_label}",
+        "notes": res.get("recovery_steps") or ["Apply the resilient code replacement above.", "Verify with a fresh test run."],
+        "extras": [],
+        "imports": [],
+        "file": rel,
+        "language": lang,
+        "code": replacement_code,
+        "llm_explanation": (res.get("why_replacement_works") or "").strip(),
+        "method": "ai_tutor_backend",
+    }
+    if not ctx.get("diagnosis"):
+        ctx["diagnosis"] = {}
+    if res.get("why_it_failed") or res.get("problem"):
+        ctx["diagnosis"]["root_cause"] = res.get("why_it_failed") or res.get("problem")
+    if res.get("prevention"):
+        ctx["diagnosis"]["recommended_fix"] = res["prevention"]
 
 
 def _refine_with_llm(ctx: dict) -> None:

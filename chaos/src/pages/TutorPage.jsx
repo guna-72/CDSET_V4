@@ -41,6 +41,18 @@ const buildContextStr = (ctx, diag) => {
     ].filter(Boolean).join('\n\n');
 };
 
+const AI_TUTOR_BASE_URL = (() => {
+    const envUrl = (import.meta.env.VITE_AI_TUTOR_URL || '').replace(/\/$/, '');
+    if (envUrl) return envUrl;
+    if (typeof window !== 'undefined' && window.location && window.location.hostname) {
+        const host = window.location.hostname;
+        if (host !== 'localhost' && host !== '127.0.0.1') {
+            return `${window.location.protocol}//${host}:5000`;
+        }
+    }
+    return 'http://127.0.0.1:5000';
+})();
+
 const requestAiTutorResponse = async ({ question, fault, contextStr, history = [], runId = '', sessionId = '' }) => {
     let answer = null;
 
@@ -55,7 +67,7 @@ const requestAiTutorResponse = async ({ question, fault, contextStr, history = [
         if (settingGeminiKey) {
             headers['X-API-Key'] = settingGeminiKey;
         }
-        const resp = await fetch('http://127.0.0.1:5000/api/chat', {
+        const resp = await fetch(`${AI_TUTOR_BASE_URL}/api/chat`, {
             method: 'POST',
             headers,
             body: JSON.stringify({
@@ -95,6 +107,46 @@ const requestAiTutorResponse = async ({ question, fault, contextStr, history = [
     return answer;
 };
 
+const requestAiTutorExplanation = async ({ fault, service, endpoint, errorMessage, file, line, currentCode, details, apiKey }) => {
+    const effectiveKey = apiKey || getEffectiveApiKey('gemini') || getEffectiveApiKey('auto');
+    try {
+        const abortCtrl = new AbortController();
+        const timeoutId = setTimeout(() => abortCtrl.abort(), 14000);
+        const headers = { 'Content-Type': 'application/json' };
+        if (effectiveKey) {
+            headers['X-API-Key'] = effectiveKey;
+        }
+        const resp = await fetch(`${AI_TUTOR_BASE_URL}/api/ai-tutor`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+                fault,
+                service,
+                endpoint,
+                error_message: errorMessage,
+                file,
+                line,
+                current_code: currentCode,
+                details,
+                ...(effectiveKey ? { api_key: effectiveKey } : {})
+            }),
+            signal: abortCtrl.signal,
+        });
+        clearTimeout(timeoutId);
+        if (resp.ok) {
+            const d = await resp.json();
+            const repCode = (d?.replacement_code || '').trim();
+            const isPlaceholder = /^\s*(gemini api keys are not configured|i am currently unable to reach the ai model)/i.test(repCode);
+            if (repCode && !isPlaceholder) {
+                return d;
+            }
+        }
+    } catch (e) {
+        console.warn('[TutorPage] direct ai-tutor explanation warning:', e);
+    }
+    return null;
+};
+
 export default function TutorPage({ setCurrentView, selectedProjectId }) {
     const projectId = selectedProjectId || localStorage.getItem('chaosTutorProjectId') || '';
     const [info, setInfo] = useState(null);
@@ -108,6 +160,7 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
     const [liveDiagnosis, setLiveDiagnosis] = useState(false);
     const [followUp, setFollowUp] = useState('');
     const [asking, setAsking] = useState(false);
+    const [regeneratingFix, setRegeneratingFix] = useState(false);
     const [copiedError, setCopiedError] = useState(false);
     const [copiedFix, setCopiedFix] = useState(false);
     const [maxChatHeight, setMaxChatHeight] = useState(null);
@@ -288,6 +341,43 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
                     resilientFile,
                 });
 
+                // Ensure the solved code & explanation come directly from ai_tutor_backend
+                if (isProblem && ctx?.code && ctx?.fix?.method !== 'ai_tutor_backend') {
+                    const faultLabel = ctx?.injected?.label || ctx?.injected?.type || diag?.failure || '';
+                    const projectName = ctx?.project?.name || (projectId ? 'Project ' + projectId.slice(0, 8) : 'the project');
+                    requestAiTutorExplanation({
+                        fault: faultLabel,
+                        service: projectName,
+                        endpoint: ctx?.experiment?.target || '',
+                        errorMessage: diag?.root_cause || diag?.failure || injectedDesc || '',
+                        file: ctx?.code?.file || '',
+                        line: ctx?.code?.line || '',
+                        currentCode: ctx?.code?.raw_snippet || ctx?.code?.snippet || '',
+                        details: injectedDesc,
+                        apiKey: getEffectiveApiKey('gemini') || getEffectiveApiKey('auto'),
+                    }).then(aiData => {
+                        if (cancelled || !aiData) return;
+                        const repCode = (aiData.replacement_code || '').trim();
+                        if (repCode) {
+                            setData(prev => ({
+                                ...prev,
+                                resilientCode: repCode,
+                                fixExplanation: aiData.why_replacement_works || prev.fixExplanation,
+                                rootCause: aiData.why_it_failed || aiData.problem || prev.rootCause,
+                                impact: aiData.why_it_failed ? `Why it failed: ${aiData.why_it_failed}` : prev.impact,
+                                fixAction: aiData.prevention || prev.fixAction,
+                                suggestedActions: (aiData.recovery_steps && Array.isArray(aiData.recovery_steps) && aiData.recovery_steps.length > 0)
+                                    ? aiData.recovery_steps
+                                    : prev.suggestedActions,
+                                patternDesc: aiData.why_replacement_works || prev.patternDesc,
+                                resilientFile: `${ctx?.code?.file || 'Solution'} · Solved by AI Tutor`,
+                            }));
+                        }
+                    }).catch(err => {
+                        console.warn('AI Tutor live explanation query error:', err);
+                    });
+                }
+
                 const chatStorageKey = getChatStorageKey(activeRunId, projectId);
                 let savedChat = null;
                 let hasSavedChat = false;
@@ -441,6 +531,45 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
         navigator.clipboard.writeText(data.resilientCode);
         setCopiedFix(true);
         setTimeout(() => setCopiedFix(false), 2000);
+    };
+
+    const handleRegenerateAiFix = async () => {
+        if (regeneratingFix || !view.ctx?.code) return;
+        setRegeneratingFix(true);
+        try {
+            const faultLabel = view.ctx?.injected?.label || view.ctx?.injected?.type || view.diag?.failure || data.title || '';
+            const projectName = view.ctx?.project?.name || (projectId ? 'Project ' + projectId.slice(0, 8) : 'the project');
+            const aiData = await requestAiTutorExplanation({
+                fault: faultLabel,
+                service: projectName,
+                endpoint: view.ctx?.experiment?.target || '',
+                errorMessage: view.diag?.root_cause || view.diag?.failure || data.rootCause || '',
+                file: view.ctx?.code?.file || '',
+                line: view.ctx?.code?.line || '',
+                currentCode: view.ctx?.code?.raw_snippet || view.ctx?.code?.snippet || data.fragileCode || '',
+                details: view.ctx?.injected?.description || '',
+                apiKey: getEffectiveApiKey('gemini') || getEffectiveApiKey('auto'),
+            });
+            if (aiData?.replacement_code) {
+                setData(prev => ({
+                    ...prev,
+                    resilientCode: aiData.replacement_code.trim(),
+                    fixExplanation: aiData.why_replacement_works || prev.fixExplanation,
+                    rootCause: aiData.why_it_failed || aiData.problem || prev.rootCause,
+                    impact: aiData.why_it_failed ? `Why it failed: ${aiData.why_it_failed}` : prev.impact,
+                    fixAction: aiData.prevention || prev.fixAction,
+                    suggestedActions: (aiData.recovery_steps && Array.isArray(aiData.recovery_steps) && aiData.recovery_steps.length > 0)
+                        ? aiData.recovery_steps
+                        : prev.suggestedActions,
+                    patternDesc: aiData.why_replacement_works || prev.patternDesc,
+                    resilientFile: `${view.ctx?.code?.file || 'Solution'} · Solved by AI Tutor`,
+                }));
+            }
+        } catch (e) {
+            console.error('Failed to regenerate fix with AI Tutor:', e);
+        } finally {
+            setRegeneratingFix(false);
+        }
     };
 
     const quickQuestions = view.ctx?.tutor_needed
@@ -1705,6 +1834,10 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
                                 )}
 
                                 <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+                                    <button className="chaos-actionBtn" onClick={handleRegenerateAiFix} disabled={regeneratingFix} style={{ background: 'rgba(99,102,241,0.22)', borderColor: 'rgba(129,140,248,0.5)' }}>
+                                        {regeneratingFix ? <Loader2 size={13} className="spin" /> : <Sparkles size={13} color="#a5b4fc" />}
+                                        <span>{regeneratingFix ? 'Generating AI Solved Code…' : 'Regenerate Solved Code with AI Tutor'}</span>
+                                    </button>
                                     <button className="chaos-actionBtn" onClick={() => setCurrentView?.('ide')}>
                                         <Code2 size={13} /> Open Cloud IDE
                                     </button>
@@ -1757,6 +1890,9 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
                                     <div className="chaos-fixCodeTitle">
                                         <ShieldCheck size={16} color="#34d399" />
                                         <span>Resilient Fix Code</span>
+                                        <span style={{ fontSize: 10, background: 'rgba(99,102,241,0.2)', color: '#c7d2fe', border: '1px solid rgba(129,140,248,0.35)', borderRadius: 4, padding: '2px 7px', fontWeight: 700, marginLeft: 6, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                            <Sparkles size={10} color="#a5b4fc" /> AI Tutor Solved
+                                        </span>
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                                         {(data.patternTitle || data.resilientFile) && (
@@ -1778,8 +1914,15 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
                                 <div className="chaos-fixCodeDesc">
                                     {data.patternDesc}
                                 </div>
-                                {data.resilientCode && (
-                                    <pre className="chaos-fixCodeBody">{data.resilientCode}</pre>
+                                {regeneratingFix ? (
+                                    <div style={{ padding: '28px 18px', textAlign: 'center', color: '#a5b4fc', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, background: 'rgba(10, 12, 18, 0.85)' }}>
+                                        <Loader2 size={16} className="spin" color="#a5b4fc" />
+                                        <span style={{ fontSize: 12 }}>Synthesizing resilient solved code with AI Tutor backend…</span>
+                                    </div>
+                                ) : (
+                                    data.resilientCode && (
+                                        <pre className="chaos-fixCodeBody">{data.resilientCode}</pre>
+                                    )
                                 )}
                             </SpotlightCard>
                         )}

@@ -697,7 +697,8 @@ def get_tutor_context(req):
     error was injected, the user's own source lines it landed on, whether the project
     handled it correctly (tutor_needed=false) and, when it did not, a suggested code fix."""
     run = _owned_run(req, req.params["id"])
-    return 200, tutor_context.build_context(run)
+    key = req.headers.get("X-Gemini-Key") or req.headers.get("X-Api-Key") or req.headers.get("x-gemini-key") or req.headers.get("x-api-key")
+    return 200, tutor_context.build_context(run, custom_api_key=key)
 
 
 @router.get("/projects/{id}/latest-run")

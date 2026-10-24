@@ -196,6 +196,12 @@ def _apply_defaults(result, fault_data):
         "Add proper error handling and monitoring."
     )
 
+    rep = result.get("replacement_code")
+    if isinstance(rep, str):
+        rep_clean = re.sub(r"^```[a-zA-Z]*\n?", "", rep.strip())
+        rep_clean = re.sub(r"\n?```$", "", rep_clean.strip())
+        result["replacement_code"] = rep_clean
+
 
 def _no_keys_response(fault_data):
     return {

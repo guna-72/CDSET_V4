@@ -185,10 +185,11 @@ if __name__ == "__main__":
     # network, that's a real attack surface for a tool that otherwise has
     # none. Default to loopback + debug off; opt back into either only
     # for actual local development.
-    host = os.getenv("AI_TUTOR_HOST", "127.0.0.1")
+    host = os.getenv("AI_TUTOR_HOST", "0.0.0.0" if os.getenv("PORT") else "127.0.0.1")
     debug = os.getenv("AI_TUTOR_DEBUG", "false").strip().lower() in ("1", "true", "yes")
+    port = int(os.getenv("PORT") or os.getenv("AI_TUTOR_PORT", "5000"))
     app.run(
         host=host,
-        port=int(os.getenv("AI_TUTOR_PORT", "5000")),
+        port=port,
         debug=debug,
     )
