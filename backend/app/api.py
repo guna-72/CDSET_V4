@@ -18,6 +18,16 @@ from app.http_framework import Router, HTTPError
 
 router = Router()
 
+@router.get("/")
+def root(req):
+    return 200, {
+        "status": "online",
+        "service": "chaos-tutor-backend",
+        "version": "1.0.0",
+        "frontend": "https://chaos-tutor-frontend.onrender.com"
+    }
+
+
 @router.get("/health")
 def health(req):
     return 200, {"status": "ok", "service": "chaos-tutor-mvp"}

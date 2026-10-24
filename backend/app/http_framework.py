@@ -115,7 +115,7 @@ def make_server(router: Router, host="127.0.0.1", port=8080):
     def origin_allowed(origin):
         if not origin:
             return True
-        if "*" in CORS_ALLOWED_ORIGINS:
+        if "*" in CORS_ALLOWED_ORIGINS or origin.endswith(".onrender.com"):
             return True
         return origin in CORS_ALLOWED_ORIGINS
 
@@ -162,7 +162,7 @@ def make_server(router: Router, host="127.0.0.1", port=8080):
             body = self.rfile.read(length) if length else b""
             req = Request(method, parsed.path, params, query, dict(self.headers), body)
             try:
-                if parsed.path not in ("/health", "/capabilities"):
+                if parsed.path not in ("/", "/health", "/capabilities"):
                     from app.auth import authenticate_request
                     authenticate_request(req, public=False)
                 else:
@@ -209,8 +209,10 @@ def make_server(router: Router, host="127.0.0.1", port=8080):
             if origin:
                 self.send_header("Access-Control-Allow-Origin", origin)
                 self.send_header("Vary", "Origin")
+            else:
+                self.send_header("Access-Control-Allow-Origin", "*")
             self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-            self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Project-Name, Authorization")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Project-Name, Authorization, X-Gemini-Key, X-Groq-Key, X-Openai-Key, X-Anthropic-Key, X-Openrouter-Key, *")
             self.send_header("Access-Control-Max-Age", "86400")
             self.send_header("Content-Length", "0")
             self.end_headers()
@@ -225,6 +227,8 @@ def make_server(router: Router, host="127.0.0.1", port=8080):
                 if origin and origin_allowed(origin):
                     self.send_header("Access-Control-Allow-Origin", origin)
                     self.send_header("Vary", "Origin")
+                elif not origin or "*" in CORS_ALLOWED_ORIGINS:
+                    self.send_header("Access-Control-Allow-Origin", "*")
                 self.send_header("X-Content-Type-Options", "nosniff")
                 self.send_header("X-Frame-Options", "DENY")
                 self.send_header("Referrer-Policy", "no-referrer")

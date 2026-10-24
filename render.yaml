@@ -12,6 +12,8 @@ services:
         value: 3.11.9
       - key: CHAOS_TUTOR_ALLOW_DEGRADED_SANDBOX
         value: "true"
+      - key: CHAOS_TUTOR_CORS_ORIGINS
+        value: "*"
       - key: FIREBASE_PROJECT_ID
         value: "chaoslad"
       - key: GEMINI_API_KEY
@@ -31,10 +33,7 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_URL
-        fromService:
-          type: web
-          name: chaos-tutor-backend
-          property: host
+        value: "https://chaos-tutor-backend.onrender.com"
       - key: VITE_FIREBASE_API_KEY
         value: "AIzaSyDn4FSw7IKNivJpP6cWxzFIlJX9J2iJHKc"
       - key: VITE_FIREBASE_AUTH_DOMAIN

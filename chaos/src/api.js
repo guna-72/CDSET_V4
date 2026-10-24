@@ -2,13 +2,19 @@
 import { auth } from './firebase';
 import { friendlyError } from './utils/friendlyError';
 
-const API_BASE=(() => {
+const API_BASE = (() => {
   let envUrl = (import.meta.env.VITE_API_URL || '').trim().replace(/\/$/, '');
   if (envUrl && !envUrl.startsWith('http://') && !envUrl.startsWith('https://')) {
     envUrl = `https://${envUrl}`;
   }
   if (typeof window !== 'undefined' && window.location && window.location.hostname) {
     const host = window.location.hostname;
+    // When running on Render, connect directly to the live backend service
+    if (host.includes('onrender.com')) {
+      if (!envUrl || envUrl.includes('localhost') || envUrl.includes('127.0.0.1') || envUrl.includes('chaos-tutor-frontend')) {
+        return 'https://chaos-tutor-backend.onrender.com';
+      }
+    }
     // When accessed over the network (e.g. from mobile phone or other PC via LAN IP),
     // route API requests to that same host on backend port 8090, unless an explicit external domain is configured.
     if (host !== 'localhost' && host !== '127.0.0.1') {

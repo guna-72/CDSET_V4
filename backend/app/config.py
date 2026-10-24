@@ -40,7 +40,7 @@ for d in (DATA_DIR, STORAGE_DIR, WORKSPACE_DIR):
 # is the real ceiling on how large an imported ZIP can be.
 MAX_HTTP_REQUEST_BYTES = 600 * 1024 * 1024
 MAX_JSON_BODY_BYTES = 256 * 1024
-CORS_ALLOWED_ORIGINS = {x.strip() for x in os.environ.get("CHAOS_TUTOR_CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",") if x.strip()}
+CORS_ALLOWED_ORIGINS = {x.strip() for x in os.environ.get("CHAOS_TUTOR_CORS_ORIGINS", "*").split(",") if x.strip()}
 API_AUTH_TOKEN = os.environ.get("CHAOS_TUTOR_API_TOKEN", "").strip()
 RATE_LIMIT_WINDOW_SECONDS = 60
 RATE_LIMIT_MAX_POSTS = 30
