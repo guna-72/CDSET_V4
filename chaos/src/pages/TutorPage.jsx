@@ -1276,14 +1276,16 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
                     background: rgba(99, 102, 241, 0.2);
                     border-color: rgba(99, 102, 241, 0.4);
                     color: #ffffff;
+                }
+
                 .chaos-fixCodeFooter {
                     display: flex;
                     align-items: center;
                     justify-content: space-between;
                     gap: 16px;
-                    padding: 14px 18px;
-                    background: linear-gradient(180deg, rgba(16, 185, 129, 0.04) 0%, rgba(16, 185, 129, 0.09) 100%);
-                    border-top: 1px solid rgba(16, 185, 129, 0.2);
+                    padding: 12px 18px;
+                    background: rgba(10, 14, 22, 0.75);
+                    border-top: 1px solid rgba(16, 185, 129, 0.22);
                     border-radius: 0 0 12px 12px;
                     flex-wrap: wrap;
                 }
@@ -1308,7 +1310,7 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
                 }
 
                 .chaos-fixTargetFile {
-                    background: rgba(16, 185, 129, 0.15);
+                    background: rgba(16, 185, 129, 0.12);
                     border: 1px solid rgba(16, 185, 129, 0.3);
                     color: #6ee7b7;
                     padding: 2px 8px;
@@ -1330,46 +1332,44 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
                     align-items: center;
                     justify-content: center;
                     gap: 8px;
-                    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-                    color: #ffffff;
-                    border: 1px solid rgba(52, 211, 153, 0.4);
-                    border-radius: 9px;
-                    padding: 11px 22px;
-                    font-size: 13.5px;
+                    background: linear-gradient(135deg, rgba(16, 185, 129, 0.18) 0%, rgba(5, 150, 105, 0.14) 100%);
+                    color: #34d399;
+                    border: 1px solid rgba(16, 185, 129, 0.45);
+                    border-radius: 8px;
+                    padding: 9px 20px;
+                    font-size: 12.5px;
                     font-weight: 700;
                     letter-spacing: 0.2px;
                     cursor: pointer;
-                    box-shadow: 0 4px 16px rgba(16, 185, 129, 0.32);
+                    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3), 0 0 12px rgba(16, 185, 129, 0.12);
                     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
                     white-space: nowrap;
-                    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
                 }
 
                 .chaos-applyFixLargeBtn:hover:not(:disabled) {
-                    background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
-                    border-color: rgba(110, 231, 183, 0.7);
-                    color: #ffffff;
-                    box-shadow: 0 6px 22px rgba(16, 185, 129, 0.48);
+                    background: linear-gradient(135deg, rgba(16, 185, 129, 0.32) 0%, rgba(5, 150, 105, 0.26) 100%);
+                    border-color: rgba(52, 211, 153, 0.7);
+                    color: #a7f3d0;
+                    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4), 0 0 16px rgba(16, 185, 129, 0.25);
                     transform: translateY(-1.5px);
                 }
 
                 .chaos-applyFixLargeBtn:active:not(:disabled) {
                     transform: translateY(0);
-                    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
                 }
 
                 .chaos-applyFixLargeBtn:disabled {
-                    opacity: 0.6;
+                    opacity: 0.55;
                     cursor: not-allowed;
                     transform: none;
                     box-shadow: none;
                 }
 
                 .chaos-applyFixLargeBtn.applied {
-                    background: linear-gradient(135deg, #059669 0%, #047857 100%);
-                    border-color: #34d399;
-                    box-shadow: 0 0 20px rgba(52, 211, 153, 0.5);
-                    color: #ffffff;
+                    background: linear-gradient(135deg, rgba(16, 185, 129, 0.35) 0%, rgba(5, 150, 105, 0.3) 100%);
+                    border-color: rgba(52, 211, 153, 0.8);
+                    color: #ecfdf5;
+                    box-shadow: 0 0 20px rgba(16, 185, 129, 0.35);
                 }
 
                 @media (max-width: 640px) {
