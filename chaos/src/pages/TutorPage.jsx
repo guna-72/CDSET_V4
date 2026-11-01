@@ -2,11 +2,11 @@ import { friendlyError } from '../utils/friendlyError';
 import React, { useState, useEffect, useRef } from 'react';
 import {
     Sparkles, Send, Bot, UserRound, Loader2, Trash2, Copy, Check,
-    ShieldCheck, Code2, AlertTriangle, Zap, RotateCcw, Folder
+    ShieldCheck, Code2, AlertTriangle, Zap, RotateCcw, Folder, CheckCircle
 } from 'lucide-react';
 import {
     getRunDiagnosis, getTutor, askTutor, getTutorContext,
-    getProjectLatestRun, listRuns
+    getProjectLatestRun, listRuns, saveProjectFile, getProjectFile
 } from '../api';
 import { getEffectiveApiKey } from '../utils/apiKeys';
 import SpotlightCard from '../components/SpotlightCard';
@@ -168,6 +168,8 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
     const [regeneratingFix, setRegeneratingFix] = useState(false);
     const [copiedError, setCopiedError] = useState(false);
     const [copiedFix, setCopiedFix] = useState(false);
+    const [applyingFix, setApplyingFix] = useState(false);
+    const [appliedFix, setAppliedFix] = useState(false);
     const [maxChatHeight, setMaxChatHeight] = useState(null);
 
     const explanationRef = useRef(null);
@@ -277,6 +279,7 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
             setView({ runId: '', ctx: null, diag: null, session: null, loading: false, error: '' });
             setData({});
             setLiveDiagnosis(false);
+            setAppliedFix(false);
             return undefined;
         }
         let cancelled = false;
@@ -536,6 +539,46 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
         navigator.clipboard.writeText(data.resilientCode);
         setCopiedFix(true);
         setTimeout(() => setCopiedFix(false), 2000);
+    };
+
+    const handleApplyFix = async () => {
+        if (applyingFix || !data.resilientCode || !projectId) return;
+        const targetFile = data.locationFile || view.ctx?.code?.file || '';
+        if (!targetFile) {
+            alert('Could not determine the target file for this fix.');
+            return;
+        }
+        setApplyingFix(true);
+        setAppliedFix(false);
+        try {
+            // Read current file content
+            const fileData = await getProjectFile(projectId, targetFile);
+            let currentContent = fileData?.content || '';
+
+            if (data.fragileCode && currentContent.includes(data.fragileCode.trim())) {
+                // Replace the fragile code with the resilient fix code
+                currentContent = currentContent.replace(data.fragileCode.trim(), data.resilientCode.trim());
+            } else {
+                // If we can't find the exact fragile snippet, replace the entire file content with the fix
+                currentContent = data.resilientCode;
+            }
+
+            // Save the updated file
+            await saveProjectFile(projectId, targetFile, currentContent);
+
+            setAppliedFix(true);
+            setTimeout(() => setAppliedFix(false), 4000);
+
+            // Navigate to IDE page so the user sees the updated code
+            setTimeout(() => {
+                if (setCurrentView) setCurrentView('ide');
+            }, 1200);
+        } catch (e) {
+            console.error('Apply fix failed:', e);
+            alert('Failed to apply fix: ' + (e?.message || 'Unknown error'));
+        } finally {
+            setApplyingFix(false);
+        }
     };
 
     const handleRegenerateAiFix = async () => {
@@ -1236,6 +1279,43 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
                     color: #ffffff;
                 }
 
+                .chaos-applyFixBtn {
+                    background: linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(5, 150, 105, 0.18) 100%);
+                    border: 1px solid rgba(16, 185, 129, 0.45);
+                    color: #34d399;
+                    border-radius: 6px;
+                    padding: 5px 12px;
+                    cursor: pointer;
+                    font-size: 11px;
+                    font-weight: 600;
+                    display: flex;
+                    align-items: center;
+                    gap: 5px;
+                    transition: all 0.2s ease;
+                    position: static;
+                }
+
+                .chaos-applyFixBtn:hover:not(:disabled) {
+                    background: linear-gradient(135deg, rgba(16, 185, 129, 0.35) 0%, rgba(5, 150, 105, 0.3) 100%);
+                    border-color: rgba(16, 185, 129, 0.7);
+                    color: #a7f3d0;
+                    box-shadow: 0 2px 12px rgba(16, 185, 129, 0.25);
+                    transform: translateY(-1px);
+                }
+
+                .chaos-applyFixBtn:disabled {
+                    opacity: 0.5;
+                    cursor: not-allowed;
+                    transform: none;
+                    box-shadow: none;
+                }
+
+                .chaos-applyFixBtn.applied {
+                    background: linear-gradient(135deg, rgba(16, 185, 129, 0.3) 0%, rgba(5, 150, 105, 0.25) 100%);
+                    border-color: rgba(16, 185, 129, 0.6);
+                    color: #a7f3d0;
+                }
+
             
 
                 .chaos-topBar {
@@ -1913,6 +1993,22 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
                                                 title="Copy resilient fix code"
                                             >
                                                 {copiedFix ? <><Check size={12} color="#34d399" /> Copied</> : <><Copy size={12} /> Copy Code</>}
+                                            </button>
+                                        )}
+                                        {data.resilientCode && (data.locationFile || view.ctx?.code?.file) && (
+                                            <button
+                                                className={`chaos-applyFixBtn${appliedFix ? ' applied' : ''}`}
+                                                onClick={handleApplyFix}
+                                                disabled={applyingFix || appliedFix}
+                                                title={`Apply fix to ${data.locationFile || view.ctx?.code?.file || 'file'} and open in IDE`}
+                                            >
+                                                {applyingFix ? (
+                                                    <><Loader2 size={12} className="spin" /> Applying…</>
+                                                ) : appliedFix ? (
+                                                    <><CheckCircle size={12} color="#34d399" /> Applied & Saved!</>
+                                                ) : (
+                                                    <><CheckCircle size={12} /> Apply Fix</>
+                                                )}
                                             </button>
                                         )}
                                     </div>
