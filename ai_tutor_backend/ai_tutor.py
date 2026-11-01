@@ -151,7 +151,7 @@ def generate_ai_response(fault_data, custom_api_key: str | None = None):
 
     gen_config = types.GenerateContentConfig(
         response_mime_type="application/json",
-        max_output_tokens=900,
+        max_output_tokens=2500,
         temperature=0.1,
     )
 
@@ -349,10 +349,10 @@ STUDENT QUESTION:
 {question}
 
 INSTRUCTIONS:
-1. Answer the student's question clearly, practically, and concisely (1-3 paragraphs max).
-2. If asking about the error, why it failed, or how to fix it, reference the context and provide a clear explanation with code if needed.
+1. Answer the student's question clearly, practically, and educationally.
+2. If asking about the error, why it failed, or how to fix it, reference the context, explain the root cause, and provide the concrete resilient code fix with line-by-line explanation.
 3. Keep the tone encouraging, educational, and professional.
-4. Reply directly in clear, clean text or markdown (no JSON wrapping).
+4. Reply directly in clear, clean markdown with syntax-highlighted code blocks where appropriate (no JSON wrapping).
 """
 
     models_to_try = list(CANDIDATE_MODELS)
@@ -361,7 +361,7 @@ INSTRUCTIONS:
         models_to_try.insert(0, _LAST_WORKING_MODEL)
 
     chat_config = types.GenerateContentConfig(
-        max_output_tokens=450,
+        max_output_tokens=1500,
         temperature=0.3,
     )
 

@@ -27,16 +27,18 @@ const OUTCOME_LABEL = {
     TARGET_UNREACHABLE: 'Target could not be reached',
 };
 
-const buildContextStr = (ctx, diag) => {
+const buildContextStr = (ctx, diag, data = null) => {
     return [
         ctx?.project?.name ? `Project: ${ctx.project.name}` : '',
         ctx?.injected?.label ? `Injected Fault: ${ctx.injected.label}` : '',
-        ctx?.code?.file ? `Problem Location: ${ctx.code.file}${ctx?.code?.line ? `, line ${ctx.code.line}` : ''}` : '',
-        ctx?.code?.snippet ? `Current Code:\n${ctx.code.snippet}` : '',
-        ctx?.fix?.code ? `Suggested Fix:\n${ctx.fix.code}` : '',
-        diag?.root_cause ? `Root Cause: ${diag.root_cause}` : '',
+        (ctx?.code?.file || data?.locationFile) ? `Problem Location: ${ctx?.code?.file || data?.locationFile}${(ctx?.code?.line || data?.locationLine) ? `, line ${ctx?.code?.line || data?.locationLine}` : ''}` : '',
+        (ctx?.code?.snippet || data?.fragileCode) ? `Current Code:\n${ctx?.code?.snippet || data?.fragileCode}` : '',
+        (ctx?.fix?.code || data?.resilientCode) ? `Suggested Fix Code:\n${ctx?.fix?.code || data?.resilientCode}` : '',
+        (ctx?.fix?.llm_explanation || data?.fixExplanation) ? `Why the Fix Works:\n${ctx?.fix?.llm_explanation || data?.fixExplanation}` : '',
+        (diag?.root_cause || data?.rootCause) ? `Root Cause: ${diag?.root_cause || data?.rootCause}` : '',
         diag?.affected_component ? `Affected Component: ${diag.affected_component}` : '',
-        diag?.recommended_fix ? `Recommended Fix: ${diag.recommended_fix}` : '',
+        (diag?.recommended_fix || data?.fixAction) ? `Recommended Fix: ${diag?.recommended_fix || data?.fixAction}` : '',
+        (diag?.resilience_pattern || data?.patternTitle) ? `Resilience Pattern: ${diag?.resilience_pattern || data?.patternTitle}` : '',
         diag?.evidence ? `Evidence: ${Array.isArray(diag.evidence) ? diag.evidence.join('; ') : diag.evidence}` : '',
     ].filter(Boolean).join('\n\n');
 };
@@ -345,7 +347,7 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
                 });
 
                 // Ensure the solved code & explanation come directly from ai_tutor_backend
-                if (isProblem && ctx?.code && ctx?.fix?.method !== 'ai_tutor_backend') {
+                if (isProblem && (!resilientCode || ctx?.fix?.method !== 'ai_tutor_backend')) {
                     const faultLabel = ctx?.injected?.label || ctx?.injected?.type || diag?.failure || '';
                     const projectName = ctx?.project?.name || (projectId ? 'Project ' + projectId.slice(0, 8) : 'the project');
                     requestAiTutorExplanation({
@@ -353,9 +355,9 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
                         service: projectName,
                         endpoint: ctx?.experiment?.target || '',
                         errorMessage: diag?.root_cause || diag?.failure || injectedDesc || '',
-                        file: ctx?.code?.file || '',
-                        line: ctx?.code?.line || '',
-                        currentCode: ctx?.code?.raw_snippet || ctx?.code?.snippet || '',
+                        file: ctx?.code?.file || locationFile || 'app.py',
+                        line: ctx?.code?.line || locationLine || 1,
+                        currentCode: ctx?.code?.raw_snippet || ctx?.code?.snippet || fragileCode || '',
                         details: injectedDesc,
                         apiKey: getEffectiveApiKey('gemini') || getEffectiveApiKey('auto'),
                     }).then(aiData => {
@@ -373,7 +375,7 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
                                     ? aiData.recovery_steps
                                     : prev.suggestedActions,
                                 patternDesc: aiData.why_replacement_works || prev.patternDesc,
-                                resilientFile: `${ctx?.code?.file || 'Solution'} · Solved by AI Tutor`,
+                                resilientFile: `${ctx?.code?.file || locationFile || 'Solution'} · Solved by AI Tutor`,
                             }));
                         }
                     }).catch(err => {
@@ -405,7 +407,7 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
                         ? `Introduce yourself as the AI Tutor. The project "${projectName}" was tested with "${faultLabel}" and handled it safely and correctly with no errors. Give a brief, encouraging 2-3 sentence overview of this test and invite the student to ask questions about how it was handled or how to test it further.`
                         : `Introduce yourself as the AI Tutor. A chaos test "${faultLabel}" was run on project "${projectName}" and an error occurred. Provide an educational, concise 2-4 sentence opening breakdown of what happened and why, and invite the student to ask about the root cause, fix, or resilience pattern.`;
 
-                    const contextStr = buildContextStr(ctx, diag);
+                    const contextStr = buildContextStr(ctx, diag, { locationFile, fragileCode, resilientCode, fixExplanation, rootCause, fixAction, patternTitle });
 
                     setAsking(true);
                     requestAiTutorResponse({
@@ -471,7 +473,7 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
         try {
             const history = messages.slice(-8).map(({ role, text }) => ({ role, text }));
             const fault = view.ctx?.injected?.label || view.ctx?.injected?.type || view.diag?.failure || data.title || '';
-            const contextStr = buildContextStr(view.ctx, view.diag);
+            const contextStr = buildContextStr(view.ctx, view.diag, data);
 
             let answer = await requestAiTutorResponse({
                 question,
@@ -537,7 +539,7 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
     };
 
     const handleRegenerateAiFix = async () => {
-        if (regeneratingFix || !view.ctx?.code) return;
+        if (regeneratingFix) return;
         setRegeneratingFix(true);
         try {
             const faultLabel = view.ctx?.injected?.label || view.ctx?.injected?.type || view.diag?.failure || data.title || '';
@@ -547,16 +549,17 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
                 service: projectName,
                 endpoint: view.ctx?.experiment?.target || '',
                 errorMessage: view.diag?.root_cause || view.diag?.failure || data.rootCause || '',
-                file: view.ctx?.code?.file || '',
-                line: view.ctx?.code?.line || '',
+                file: view.ctx?.code?.file || data.locationFile || 'app.py',
+                line: view.ctx?.code?.line || data.locationLine || 1,
                 currentCode: view.ctx?.code?.raw_snippet || view.ctx?.code?.snippet || data.fragileCode || '',
-                details: view.ctx?.injected?.description || '',
+                details: view.ctx?.injected?.description || data.injectedDesc || '',
                 apiKey: getEffectiveApiKey('gemini') || getEffectiveApiKey('auto'),
             });
             if (aiData?.replacement_code) {
+                const repCode = aiData.replacement_code.trim();
                 setData(prev => ({
                     ...prev,
-                    resilientCode: aiData.replacement_code.trim(),
+                    resilientCode: repCode,
                     fixExplanation: aiData.why_replacement_works || prev.fixExplanation,
                     rootCause: aiData.why_it_failed || aiData.problem || prev.rootCause,
                     impact: aiData.why_it_failed ? `Why it failed: ${aiData.why_it_failed}` : prev.impact,
@@ -565,7 +568,7 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
                         ? aiData.recovery_steps
                         : prev.suggestedActions,
                     patternDesc: aiData.why_replacement_works || prev.patternDesc,
-                    resilientFile: `${view.ctx?.code?.file || 'Solution'} · Solved by AI Tutor`,
+                    resilientFile: `${view.ctx?.code?.file || data.locationFile || 'Solution'} · Solved by AI Tutor`,
                 }));
             }
         } catch (e) {
@@ -1923,8 +1926,24 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
                                         <span style={{ fontSize: 12 }}>Synthesizing resilient solved code with AI Tutor backend…</span>
                                     </div>
                                 ) : (
-                                    data.resilientCode && (
+                                    data.resilientCode ? (
                                         <pre className="chaos-fixCodeBody">{data.resilientCode}</pre>
+                                    ) : (
+                                        <div style={{ padding: '16px 20px', background: 'rgba(15, 23, 42, 0.65)', borderTop: '1px solid rgba(255, 255, 255, 0.06)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                            <div style={{ fontSize: 12.5, color: '#94a3b8', lineHeight: 1.5 }}>
+                                                AI Tutor can synthesize the complete, production-ready resilient fix code for this failure.
+                                            </div>
+                                            <div>
+                                                <button
+                                                    className="chaos-actionBtn chaos-actionBtn-primary"
+                                                    onClick={handleRegenerateAiFix}
+                                                    disabled={regeneratingFix}
+                                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(99,102,241,0.25)', borderColor: 'rgba(129,140,248,0.5)' }}
+                                                >
+                                                    <Sparkles size={13} color="#a5b4fc" /> Generate Solved Code with AI Tutor
+                                                </button>
+                                            </div>
+                                        </div>
                                     )
                                 )}
                             </SpotlightCard>

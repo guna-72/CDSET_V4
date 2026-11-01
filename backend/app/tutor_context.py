@@ -215,7 +215,28 @@ def _find_line(fault: str, params: dict, files, entry):
                     if rx.search(line):
                         add(2 + prio, rel, lang, text, i)
     if not candidates:
-        return None
+        if not files:
+            return None
+        target_file = None
+        if entry:
+            target_file = next((f for f in files if f[0] == entry), None)
+        if not target_file:
+            for pref in _PREFERRED_NAMES:
+                target_file = next((f for f in files if pathlib.PurePosixPath(f[0]).stem.lower() == pref), None)
+                if target_file:
+                    break
+        if not target_file:
+            target_file = files[0]
+
+        rel, lang, text = target_file
+        lines = text.splitlines()
+        best_idx = 0
+        for i, l in enumerate(lines):
+            if re.search(r"\bdef\s+do_(?:GET|POST|PUT|DELETE)\b|\bdef\s+\w+\b|@app\.\w+|\bapp\.(?:get|post|use)\b|\bclass\s+\w+\b", l):
+                best_idx = i
+                break
+        return rel, lang, text, best_idx
+
     candidates.sort(key=lambda c: (c[0], c[1], c[4]))
     _, rel, lang, text, idx = candidates[0]
     return rel, lang, text, idx

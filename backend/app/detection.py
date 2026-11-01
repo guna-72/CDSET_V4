@@ -165,10 +165,11 @@ def _classify_process_kill_recovery(result):
 
 def _classify_connection_refused(result):
     chaos = result.get("chaos") or {}
-    if not chaos.get("ok") and "refused" in str(chaos.get("error", "")).lower():
+    err = str(chaos.get("error", "")).lower()
+    if not chaos.get("ok") and any(w in err for w in ("refused", "timed out", "timeout", "10061", "10060", "reset", "closed")):
         return _outcome("PASSED",
-                         "an unreachable service surfaces as a fast, clean connection refusal, "
-                         "not a hang — this is what monitoring/health checks depend on", result)
+                         "an unreachable service surfaces as a clean connection refusal or timeout, "
+                         "not an unhandled server hang — this is what monitoring/health checks depend on", result)
     if not chaos.get("ok"):
         return _outcome("ANOMALY", f"unreachable service produced an unexpected error: {chaos.get('error')}", result)
     return _outcome("ANOMALY", "service unexpectedly still responded after being stopped", result)
