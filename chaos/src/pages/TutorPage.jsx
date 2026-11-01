@@ -543,10 +543,9 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
 
     const handleApplyFix = async () => {
         if (applyingFix || !data.resilientCode || !projectId) return;
-        const targetFile = data.locationFile || view.ctx?.code?.file || '';
+        let targetFile = data.locationFile || view.ctx?.code?.file || '';
         if (!targetFile) {
-            alert('Could not determine the target file for this fix.');
-            return;
+            targetFile = 'app.py';
         }
         setApplyingFix(true);
         setAppliedFix(false);
@@ -1277,43 +1276,110 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
                     background: rgba(99, 102, 241, 0.2);
                     border-color: rgba(99, 102, 241, 0.4);
                     color: #ffffff;
-                }
-
-                .chaos-applyFixBtn {
-                    background: linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(5, 150, 105, 0.18) 100%);
-                    border: 1px solid rgba(16, 185, 129, 0.45);
-                    color: #34d399;
-                    border-radius: 6px;
-                    padding: 5px 12px;
-                    cursor: pointer;
-                    font-size: 11px;
-                    font-weight: 600;
+                .chaos-fixCodeFooter {
                     display: flex;
                     align-items: center;
-                    gap: 5px;
-                    transition: all 0.2s ease;
-                    position: static;
+                    justify-content: space-between;
+                    gap: 16px;
+                    padding: 14px 18px;
+                    background: linear-gradient(180deg, rgba(16, 185, 129, 0.04) 0%, rgba(16, 185, 129, 0.09) 100%);
+                    border-top: 1px solid rgba(16, 185, 129, 0.2);
+                    border-radius: 0 0 12px 12px;
+                    flex-wrap: wrap;
                 }
 
-                .chaos-applyFixBtn:hover:not(:disabled) {
-                    background: linear-gradient(135deg, rgba(16, 185, 129, 0.35) 0%, rgba(5, 150, 105, 0.3) 100%);
-                    border-color: rgba(16, 185, 129, 0.7);
-                    color: #a7f3d0;
-                    box-shadow: 0 2px 12px rgba(16, 185, 129, 0.25);
-                    transform: translateY(-1px);
+                .chaos-fixCodeFooterLeft {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 4px;
+                    min-width: 0;
                 }
 
-                .chaos-applyFixBtn:disabled {
-                    opacity: 0.5;
+                .chaos-fixCodeTarget {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    font-size: 12px;
+                }
+
+                .chaos-fixTargetLabel {
+                    color: #94a3b8;
+                    font-weight: 600;
+                }
+
+                .chaos-fixTargetFile {
+                    background: rgba(16, 185, 129, 0.15);
+                    border: 1px solid rgba(16, 185, 129, 0.3);
+                    color: #6ee7b7;
+                    padding: 2px 8px;
+                    border-radius: 4px;
+                    font-family: var(--font-mono, monospace);
+                    font-size: 11.5px;
+                    word-break: break-all;
+                }
+
+                .chaos-fixTargetHint {
+                    margin: 0;
+                    color: #64748b;
+                    font-size: 11px;
+                    line-height: 1.4;
+                }
+
+                .chaos-applyFixLargeBtn {
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 8px;
+                    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+                    color: #ffffff;
+                    border: 1px solid rgba(52, 211, 153, 0.4);
+                    border-radius: 9px;
+                    padding: 11px 22px;
+                    font-size: 13.5px;
+                    font-weight: 700;
+                    letter-spacing: 0.2px;
+                    cursor: pointer;
+                    box-shadow: 0 4px 16px rgba(16, 185, 129, 0.32);
+                    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+                    white-space: nowrap;
+                    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+                }
+
+                .chaos-applyFixLargeBtn:hover:not(:disabled) {
+                    background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+                    border-color: rgba(110, 231, 183, 0.7);
+                    color: #ffffff;
+                    box-shadow: 0 6px 22px rgba(16, 185, 129, 0.48);
+                    transform: translateY(-1.5px);
+                }
+
+                .chaos-applyFixLargeBtn:active:not(:disabled) {
+                    transform: translateY(0);
+                    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+                }
+
+                .chaos-applyFixLargeBtn:disabled {
+                    opacity: 0.6;
                     cursor: not-allowed;
                     transform: none;
                     box-shadow: none;
                 }
 
-                .chaos-applyFixBtn.applied {
-                    background: linear-gradient(135deg, rgba(16, 185, 129, 0.3) 0%, rgba(5, 150, 105, 0.25) 100%);
-                    border-color: rgba(16, 185, 129, 0.6);
-                    color: #a7f3d0;
+                .chaos-applyFixLargeBtn.applied {
+                    background: linear-gradient(135deg, #059669 0%, #047857 100%);
+                    border-color: #34d399;
+                    box-shadow: 0 0 20px rgba(52, 211, 153, 0.5);
+                    color: #ffffff;
+                }
+
+                @media (max-width: 640px) {
+                    .chaos-fixCodeFooter {
+                        flex-direction: column;
+                        align-items: stretch;
+                    }
+                    .chaos-applyFixLargeBtn {
+                        width: 100%;
+                    }
                 }
 
             
@@ -1986,29 +2052,13 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
                                                 {data.patternTitle || data.resilientFile}
                                             </span>
                                         )}
-                                        {data.resilientCode && (
+                                         {data.resilientCode && (
                                             <button
                                                 className="chaos-copyCode"
                                                 onClick={copyFixCode}
                                                 title="Copy resilient fix code"
                                             >
                                                 {copiedFix ? <><Check size={12} color="#34d399" /> Copied</> : <><Copy size={12} /> Copy Code</>}
-                                            </button>
-                                        )}
-                                        {data.resilientCode && (data.locationFile || view.ctx?.code?.file) && (
-                                            <button
-                                                className={`chaos-applyFixBtn${appliedFix ? ' applied' : ''}`}
-                                                onClick={handleApplyFix}
-                                                disabled={applyingFix || appliedFix}
-                                                title={`Apply fix to ${data.locationFile || view.ctx?.code?.file || 'file'} and open in IDE`}
-                                            >
-                                                {applyingFix ? (
-                                                    <><Loader2 size={12} className="spin" /> Applying…</>
-                                                ) : appliedFix ? (
-                                                    <><CheckCircle size={12} color="#34d399" /> Applied & Saved!</>
-                                                ) : (
-                                                    <><CheckCircle size={12} /> Apply Fix</>
-                                                )}
                                             </button>
                                         )}
                                     </div>
@@ -2023,7 +2073,43 @@ export default function TutorPage({ setCurrentView, selectedProjectId }) {
                                     </div>
                                 ) : (
                                     data.resilientCode ? (
-                                        <pre className="chaos-fixCodeBody">{data.resilientCode}</pre>
+                                        <>
+                                            <pre className="chaos-fixCodeBody">{data.resilientCode}</pre>
+                                            <div className="chaos-fixCodeFooter">
+                                                <div className="chaos-fixCodeFooterLeft">
+                                                    <div className="chaos-fixCodeTarget">
+                                                        <span className="chaos-fixTargetLabel">Target File:</span>
+                                                        <code className="chaos-fixTargetFile">{data.locationFile || view.ctx?.code?.file || 'app.py'}</code>
+                                                    </div>
+                                                    <p className="chaos-fixTargetHint">
+                                                        Applies resilient patch directly into project and automatically opens Cloud IDE.
+                                                    </p>
+                                                </div>
+                                                <button
+                                                    className={`chaos-applyFixLargeBtn${appliedFix ? ' applied' : ''}`}
+                                                    onClick={handleApplyFix}
+                                                    disabled={applyingFix || appliedFix}
+                                                    title={`Apply fix to ${data.locationFile || view.ctx?.code?.file || 'file'} and open in Cloud IDE`}
+                                                >
+                                                    {applyingFix ? (
+                                                        <>
+                                                            <Loader2 size={16} className="spin" />
+                                                            <span>Applying Fix to Code…</span>
+                                                        </>
+                                                    ) : appliedFix ? (
+                                                        <>
+                                                            <CheckCircle size={16} />
+                                                            <span>Fix Applied & Saved! Opening IDE…</span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <CheckCircle size={16} />
+                                                            <span>Apply Fix to Code & Open in IDE</span>
+                                                        </>
+                                                    )}
+                                                </button>
+                                            </div>
+                                        </>
                                     ) : (
                                         <div style={{ padding: '16px 20px', background: 'rgba(15, 23, 42, 0.65)', borderTop: '1px solid rgba(255, 255, 255, 0.06)', display: 'flex', flexDirection: 'column', gap: 10 }}>
                                             <div style={{ fontSize: 12.5, color: '#94a3b8', lineHeight: 1.5 }}>
